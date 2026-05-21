@@ -433,6 +433,9 @@ select.inp{cursor:pointer}
   <div class="sth">Custom Theme Colours</div>
   <div class="custom-theme-grid" id="custom-theme-grid"></div>
   <div class="sth">Quote Defaults</div>
+  <div class="mfld"><label class="mlbl">Logo</label>
+    <div id="settings-logo-area"></div>
+  </div>
   <div class="mfld"><label class="mlbl">Default Business Name</label><input class="minp" id="def-biz" placeholder="e.g. Drummond Bathroom Renovations"></div>
   <div class="mfld"><label class="mlbl">Default ABN</label><input class="minp" id="def-abn" placeholder="e.g. 12 345 678 900"></div>
   <div class="mfld"><label class="mlbl">Default Phone</label><input class="minp" id="def-phone" placeholder="e.g. 04xx xxx xxx"></div>
@@ -520,6 +523,7 @@ function openSettings(){
   document.getElementById('def-email').value=appSettings.defEmail;
   document.getElementById('def-notes').value=appSettings.defNotes;
   buildThemeGrid();
+  renderLogoArea(); // populate logo in both locations
   document.getElementById('settings-movl').classList.add('show');
 }
 function closeSettings(){document.getElementById('settings-movl').classList.remove('show');}
@@ -546,15 +550,19 @@ function handleLogoUpload(inp){
 }
 function clearLogo(){appSettings.logoDataUrl=null;persistSettings();renderLogoArea();refreshQuote();}
 function renderLogoArea(){
-  const area=document.getElementById('logo-area');
-  if(appSettings.logoDataUrl){
-    area.innerHTML=`<div class="logo-container" title="Click to change logo">
-      <img src="${appSettings.logoDataUrl}" style="max-height:52px;max-width:140px;object-fit:contain;display:block" onclick="document.getElementById('logo-upload').click()">
-      <button class="logo-x-btn" onclick="clearLogo()" title="Remove logo">×</button>
-    </div>`;
-  }else{
-    area.innerHTML=`<button class="btn btn-ol" style="width:auto;padding:5px 12px" onclick="document.getElementById('logo-upload').click()">Upload Logo</button>`;
+  function logoHTML(areaId){
+    const area=document.getElementById(areaId);if(!area)return;
+    if(appSettings.logoDataUrl){
+      area.innerHTML=`<div class="logo-container" title="Click to change logo" style="display:inline-flex;position:relative;cursor:pointer;border-radius:4px;overflow:hidden">
+        <img src="${appSettings.logoDataUrl}" style="max-height:52px;max-width:140px;object-fit:contain;display:block" onclick="document.getElementById('logo-upload').click()">
+        <button style="position:absolute;top:2px;right:2px;width:20px;height:20px;background:rgba(224,68,85,.9);color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center" onclick="clearLogo()" title="Remove logo">×</button>
+      </div>`;
+    }else{
+      area.innerHTML=`<button class="btn btn-ol" style="width:auto;padding:5px 12px" onclick="document.getElementById('logo-upload').click()">Upload Logo</button>`;
+    }
   }
+  logoHTML('logo-area');
+  logoHTML('settings-logo-area');
 }
 
 // ═══════════════════════════════════════════════
