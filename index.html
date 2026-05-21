@@ -45,6 +45,9 @@ header{height:46px;background:var(--sf);border-bottom:2px solid var(--ac);displa
 .tsep{width:1px;height:18px;background:var(--bd2);margin:0 2px;flex-shrink:0}
 .snp{display:flex;align-items:center;gap:4px;padding:0 5px;font-size:11px;color:var(--tx2);font-weight:600;flex-shrink:0;white-space:nowrap}
 .snp input{accent-color:var(--ac);width:13px;height:13px}
+.snap-sel{background:var(--sf2);border:1px solid var(--bd2);border-radius:3px;color:var(--tx2);font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:2px 4px;cursor:pointer;outline:none}
+.snap-sel:focus{border-color:var(--ac)}
+@media(max-width:700px){.mob-hide{display:none!important}}
 
 /* MAIN */
 .app-main{flex:1;display:flex;overflow:hidden;position:relative;min-height:0}
@@ -193,7 +196,7 @@ select.inp{cursor:pointer}
 .q-tbl th{padding:5px 8px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aaa;border-bottom:2px solid #f0ebe0}
 .q-tbl td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle;white-space:nowrap}
 .q-tbl td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444;white-space:nowrap}
-.q-tbl td.pr{text-align:right;font-weight:700}.q-tbl td.na{color:#ccc;text-align:right}
+.q-tbl th.pr{text-align:right;color:#555}.q-tbl td.pr{text-align:right;font-weight:700;color:#1a1a2e}.q-tbl td.na{color:#ccc;text-align:right}
 .q-totals{max-width:340px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
 .q-tot-inner{padding:9px 14px}
 .q-tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:#888;border-bottom:1px solid #f5f0ea}
@@ -276,13 +279,16 @@ select.inp{cursor:pointer}
   <button class="tbtn" onclick="openDrainModal()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="4" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="4" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="20" y2="12"/></svg>Drain</button>
   <button class="tbtn" onclick="openScreenModal()"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="3" height="16"/><line x1="6" y1="12" x2="21" y2="12"/><polyline points="18 9 21 12 18 15"/></svg>Screen</button>
   <div class="tsep"></div>
-  <button class="tbtn" id="t-pan" onclick="setTool('pan')"><svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/></svg>Pan</button>
+  <button class="tbtn mob-hide" id="t-pan" onclick="setTool('pan')"><svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/></svg>Pan</button>
   <button class="tbtn grn" onclick="undo()"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.7"/></svg>Undo</button>
   <button class="tbtn grn" onclick="redo()"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-4.7"/></svg>Redo</button>
   <button class="tbtn danger" onclick="deleteSelected()"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button>
   <div class="tsep"></div>
-  <div class="snp"><input type="checkbox" id="sn5" checked><label for="sn5">5mm</label></div>
   <div class="snp"><input type="checkbox" id="snw" checked><label for="snw">Wall</label></div>
+  <div class="snp" style="gap:3px">
+    <label for="snapmm" style="font-size:9px;text-transform:uppercase;letter-spacing:.05em">Snap</label>
+    <select id="snapmm" class="snap-sel" onchange="render()"><option value="5" selected>5mm</option><option value="10">10mm</option><option value="25">25mm</option><option value="50">50mm</option><option value="100">100mm</option></select>
+  </div>
 </div>
 
 <div class="app-main">
@@ -583,18 +589,18 @@ function getFloorForObj(o){
 // SNAP
 // ═══════════════════════════════════════════════
 function snapPt(raw){
-  const doW=document.getElementById('snw').checked,do5=document.getElementById('sn5').checked,R=13/zoom;
+  const doW=document.getElementById('snw').checked,snapInc=+document.getElementById('snapmm')?.value||5,do5=snapInc>0,R=13/zoom;
   let pt={...raw},type=null;
   if(doW){let best=R;for(const o of objs){if(o.type!=='floor'||o._editing)continue;for(const v of o.vertices){const d=dist(raw,v);if(d<best){best=d;pt={...v};type='vertex';}}}
   if(drawPhase!=='idle'&&!type)for(let i=0;i<dv.length;i++){const d=dist(raw,dv[i]);if(d<R&&i!==editDragVert){pt={...dv[i]};type='vertex';}}
   if(!type){let best=R;for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const mid={x:(vs[i].x+vs[(i+1)%vs.length].x)/2,y:(vs[i].y+vs[(i+1)%vs.length].y)/2};const d=dist(raw,mid);if(d<best){best=d;pt=mid;type='mid';}}}}
   }
-  if(!type){const RNG=doW?900/zoom:0;let bestD=10/zoom;for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length],wdx=b.x-a.x,wdy=b.y-a.y,wl=Math.hypot(wdx,wdy);if(!wl)continue;const ux=wdx/wl,uy=wdy/wl,nx=-uy,ny=ux;const rx=raw.x-a.x,ry=raw.y-a.y,al=rx*ux+ry*uy,pe=rx*nx+ry*ny;if(Math.abs(pe)>RNG||al<-RNG||al>wl+RNG)continue;const sa=do5?Math.round(al/5)*5:al,sp=do5?Math.round(pe/5)*5:pe;const c={x:a.x+sa*ux+sp*nx,y:a.y+sa*uy+sp*ny};const d=dist(raw,c);if(d<bestD){bestD=d;pt=c;type='wall-grid';}}}}
-  if(!type&&do5){pt={x:Math.round(raw.x/5)*5,y:Math.round(raw.y/5)*5};type='grid';}
+  if(!type){const RNG=doW?900/zoom:0;let bestD=10/zoom;for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length],wdx=b.x-a.x,wdy=b.y-a.y,wl=Math.hypot(wdx,wdy);if(!wl)continue;const ux=wdx/wl,uy=wdy/wl,nx=-uy,ny=ux;const rx=raw.x-a.x,ry=raw.y-a.y,al=rx*ux+ry*uy,pe=rx*nx+ry*ny;if(Math.abs(pe)>RNG||al<-RNG||al>wl+RNG)continue;const sa=do5?Math.round(al/snapInc)*snapInc:al,sp=do5?Math.round(pe/snapInc)*snapInc:pe;const c={x:a.x+sa*ux+sp*nx,y:a.y+sa*uy+sp*ny};const d=dist(raw,c);if(d<bestD){bestD=d;pt=c;type='wall-grid';}}}}
+  if(!type&&do5){pt={x:Math.round(raw.x/snapInc)*snapInc,y:Math.round(raw.y/snapInc)*snapInc};type='grid';}
   return{pt,type};
 }
-function snapObj(raw){const doW=document.getElementById('snw').checked,do5=document.getElementById('sn5').checked,RNG=1200/zoom;let bestD=10/zoom,bestPt=null;if(doW)for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length],wdx=b.x-a.x,wdy=b.y-a.y,wl=Math.hypot(wdx,wdy);if(!wl)continue;const ux=wdx/wl,uy=wdy/wl,nx=-uy,ny=ux;const rx=raw.x-a.x,ry=raw.y-a.y,al=rx*ux+ry*uy,pe=rx*nx+ry*ny;if(Math.abs(pe)>RNG)continue;const sa=do5?Math.round(al/5)*5:al,sp=do5?Math.round(pe/5)*5:pe;const c={x:a.x+sa*ux+sp*nx,y:a.y+sa*uy+sp*ny};const d=dist(raw,c);if(d<bestD){bestD=d;bestPt=c;}}}if(bestPt)return bestPt;if(do5)return{x:Math.round(raw.x/5)*5,y:Math.round(raw.y/5)*5};return{...raw};}
-function snapOriginPt(raw,fid){const fl=objs.find(o=>o.id===fid);if(!fl)return{...raw};const doW=document.getElementById('snw').checked,do5=document.getElementById('sn5').checked,R=20/zoom;if(doW){for(const v of fl.vertices)if(dist(raw,v)<R)return{...v};const vs=fl.vertices;for(let i=0;i<vs.length;i++){const{pt}=closestOnSeg(raw,vs[i],vs[(i+1)%vs.length]);if(dist(raw,pt)<R)return pt;}}if(do5)return{x:Math.round(raw.x/5)*5,y:Math.round(raw.y/5)*5};return{...raw};}
+function snapObj(raw){const doW=document.getElementById('snw').checked,snapInc=+document.getElementById('snapmm')?.value||5,do5=snapInc>0,RNG=1200/zoom;let bestD=10/zoom,bestPt=null;if(doW)for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length],wdx=b.x-a.x,wdy=b.y-a.y,wl=Math.hypot(wdx,wdy);if(!wl)continue;const ux=wdx/wl,uy=wdy/wl,nx=-uy,ny=ux;const rx=raw.x-a.x,ry=raw.y-a.y,al=rx*ux+ry*uy,pe=rx*nx+ry*ny;if(Math.abs(pe)>RNG)continue;const sa=do5?Math.round(al/snapInc)*snapInc:al,sp=do5?Math.round(pe/snapInc)*snapInc:pe;const c={x:a.x+sa*ux+sp*nx,y:a.y+sa*uy+sp*ny};const d=dist(raw,c);if(d<bestD){bestD=d;bestPt=c;}}}if(bestPt)return bestPt;if(do5)return{x:Math.round(raw.x/snapInc)*snapInc,y:Math.round(raw.y/snapInc)*snapInc};return{...raw};}
+function snapOriginPt(raw,fid){const fl=objs.find(o=>o.id===fid);if(!fl)return{...raw};const doW=document.getElementById('snw').checked,snapInc=+document.getElementById('snapmm')?.value||5,do5=snapInc>0,R=20/zoom;if(doW){for(const v of fl.vertices)if(dist(raw,v)<R)return{...v};const vs=fl.vertices;for(let i=0;i<vs.length;i++){const{pt}=closestOnSeg(raw,vs[i],vs[(i+1)%vs.length]);if(dist(raw,pt)<R)return pt;}}if(do5)return{x:Math.round(raw.x/snapInc)*snapInc,y:Math.round(raw.y/snapInc)*snapInc};return{...raw};}
 function findWallSnap(pos){const R=30/zoom;let best=null,bestD=R;for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length];const{pt}=closestOnSeg(pos,a,b);const d=dist(pos,pt);if(d<bestD){bestD=d;best={pt,wallAngle:Math.atan2(b.y-a.y,b.x-a.x),a,b};}}}return best;}
 
 // ═══════════════════════════════════════════════
@@ -712,6 +718,14 @@ function _render(){
   if(settingOrigin!=null)drawOriginPrev();
   if((cH||cV||keys.has('Shift'))&&drawPhase==='drawing'&&dv.length>0)drawConLine();
   if(pendingConstraint&&drawPhase==='closed')drawPendingHint();
+  drawScaleBar();
+  // Live area display while drawing
+  if(drawPhase==='drawing'&&dv.length>=3){
+    const area=polyArea([...dv,mw])/1e6;
+    const ac=getAC();
+    ctx.fillStyle=ac+'cc';ctx.font='700 11px Barlow Condensed,sans-serif';ctx.textAlign='right';
+    ctx.fillText(`Area: ~${area.toFixed(2)} m²`,cv.width-10,cv.height-10);ctx.textAlign='left';
+  }
   document.getElementById('ehint').style.display=objs.filter(o=>o.type==='floor'&&!o._editing).length===0&&drawPhase==='idle'?'block':'none';
   updateConUI();
 }
@@ -857,9 +871,10 @@ cv.addEventListener('touchstart',e=>{
   e.preventDefault();
   if(e.touches.length===2){pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);pinchZ0=zoom;return;}
   const sp=evPt(e);lastTouchPos=sp;
-  // In draw-closed mode: vertex/edge selection
+  const raw=s2w(sp.x,sp.y);
+
+  // DRAW MODE — closed: vertex/edge selection
   if(tool==='draw'&&drawPhase==='closed'){
-    const raw=s2w(sp.x,sp.y);
     const vi=hitDrawVertex(raw);
     if(vi!==null){editSelVert=vi;editSelEdge=null;editDragVert=vi;render();return;}
     const ei=hitDrawEdge(raw);
@@ -870,52 +885,80 @@ cv.addEventListener('touchstart',e=>{
     }
     editSelVert=null;editSelEdge=null;updateConUI();render();return;
   }
+
+  // DRAW MODE — drawing: just show preview, place vertex on touchend
+  if(tool==='draw'&&drawPhase!=='idle'){mw=raw;render();return;}
+
+  // PLACEMENT MODE
   if(tool==='place-drain'||tool==='place-screen'){handleMove(sp,true);return;}
-  // Check if hitting a drain or screen — hold-to-drag, tap-to-panel
-  const raw=s2w(sp.x,sp.y);
+
+  // SELECT MODE
   const hid=hitTest(raw);
-  if(hid!==null){
-    const o=objs.find(ob=>ob.id===hid);
-    if(o&&(o.type==='drain'||o.type==='screen')){
-      selObj(hid); // visual select immediately
-      dragOff={x:raw.x-o.x,y:raw.y-o.y};
-      touchHoldSp=sp;
-      // After 350ms without movement = drag mode; quick release = open sheet
-      touchHoldTimer=setTimeout(()=>{
-        touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';
-      },350);
-      return;
-    }
+
+  // Empty space: pan immediately
+  if(hid===null){
+    panning=true;panSt=sp;panO={...pan};
+    return;
   }
+
+  // Drain or screen: hold-to-drag
+  const o=objs.find(ob=>ob.id===hid);
+  if(o&&(o.type==='drain'||o.type==='screen')){
+    selObj(hid);
+    dragOff={x:raw.x-o.x,y:raw.y-o.y};
+    touchHoldSp=sp;
+    touchHoldTimer=setTimeout(()=>{touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';},350);
+    return;
+  }
+
+  // Floor or other: tap to select, long-press handled in longPressT
   clearTimeout(longPressT);
-  longPressT=setTimeout(()=>{longPressT=null;const r=s2w(sp.x,sp.y);const h=hitTest(r);if(h!==null){selObj(h);openSheet();}},500);
+  longPressT=setTimeout(()=>{longPressT=null;const h=hitTest(s2w(sp.x,sp.y));if(h!==null){selObj(h);openSheet();}},500);
   handleDown(sp,true);
 },{passive:false});
+
 cv.addEventListener('touchmove',e=>{
   e.preventDefault();clearTimeout(longPressT);longPressT=null;
   if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);return;}
   lastTouchPos=evPt(e);
-  // If holding drain/screen and moved enough, activate drag
+  // Activate drag if moved enough while holding drain/screen
   if(touchHoldTimer!==null&&Math.hypot(lastTouchPos.x-touchHoldSp.x,lastTouchPos.y-touchHoldSp.y)>10){
     clearTimeout(touchHoldTimer);touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';
   }
   handleMove(lastTouchPos,true);
 },{passive:false});
+
 cv.addEventListener('touchend',e=>{
   e.preventDefault();clearTimeout(longPressT);longPressT=null;
+
+  // PLACEMENT MODE: place on release
   if(tool==='place-drain'||tool==='place-screen'){mw=s2w(lastTouchPos.x,lastTouchPos.y);placeObject(lastTouchPos);return;}
-  // Hold-to-drag resolution for drains/screens
+
+  // DRAW MODE — drawing: place vertex at released position
+  if(tool==='draw'&&drawPhase!=='closed'){
+    const sp=evPt(e);
+    const now=Date.now();
+    const isDbl=now-lastTapT<320&&Math.hypot(lastTouchPos.x-lastTapPos.x,lastTouchPos.y-lastTapPos.y)<44;
+    lastTapT=now;lastTapPos={...lastTouchPos};
+    mw=s2w(lastTouchPos.x,lastTouchPos.y);
+    const con=applyDrawCon(mw);const{pt:snp}=snapPt(con);
+    if(isDbl&&dv.length>2){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();return;}
+    if(dv.length>2){const fsp=w2s(dv[0].x,dv[0].y),csp=w2s(snp.x,snp.y);if(dist(fsp,csp)<32){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();return;}}
+    if(drawPhase==='idle')drawPhase='drawing';
+    dv.push({...snp});updateConUI();render();
+    return;
+  }
+
+  // HOLD-TO-DRAG resolution for drain/screen
   if(touchHoldTimer!==null){
-    // Tap: timer still running → quick tap → open sheet
     clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
     if(selId!==null)openSheet();
     handleUp(true);return;
   }
-  if(touchHoldSp!==null){
-    // Was in drag mode (timer already fired)
-    touchHoldSp=null;handleUp(true);return;
-  }
+  if(touchHoldSp!==null){touchHoldSp=null;handleUp(true);return;}
   if(editDragVert!==null){handleUp(true);return;}
+
+  // Double-tap detection for everything else
   const sp=evPt(e);const now=Date.now();
   if(now-lastTapT<320&&Math.hypot(sp.x-lastTapPos.x,sp.y-lastTapPos.y)<44){lastTapT=0;handleDbl(sp);}
   else{lastTapT=now;lastTapPos=sp;}
@@ -989,6 +1032,32 @@ function handleDbl(sp){
 function setZoom(nz,cx2,cy2){nz=Math.max(0.007,Math.min(8,nz));const wx=(cx2-pan.x)/zoom,wy=(cy2-pan.y)/zoom;zoom=nz;pan.x=cx2-wx*zoom;pan.y=cy2-wy*zoom;document.getElementById('zlvl').textContent=Math.round(zoom/0.15*100)+'%';render();}
 function adjZoom(f){setZoom(zoom*f,cv.width/2,cv.height/2);}
 function fitView(){const fl=objs.filter(o=>o.type==='floor'&&!o._editing);if(!fl.length){pan.x=cv.width/2;pan.y=cv.height/2;render();return;}let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;for(const f of fl)for(const v of f.vertices){mnx=Math.min(mnx,v.x);mny=Math.min(mny,v.y);mxx=Math.max(mxx,v.x);mxy=Math.max(mxy,v.y);}const mg=60,sx=(cv.width-mg*2)/(mxx-mnx||1),sy=(cv.height-mg*2)/(mxy-mny||1);const nz=Math.min(sx,sy,2.5);pan.x=cv.width/2-(mnx+mxx)/2*nz;pan.y=cv.height/2-(mny+mxy)/2*nz;setZoom(nz,cv.width/2,cv.height/2);}
+
+function duplicateFloor(fid){
+  const fl=objs.find(o=>o.id===fid);if(!fl)return;saveUndo();
+  const offset=200;
+  const copy=JSON.parse(JSON.stringify(fl));
+  copy.id=nid++;copy.name=fl.name+' Copy';
+  copy._editing=false;
+  copy.vertices=fl.vertices.map(v=>({x:v.x+offset,y:v.y+offset}));
+  if(copy.tileOrigin)copy.tileOrigin={x:fl.tileOrigin.x+offset,y:fl.tileOrigin.y+offset};
+  objs.push(copy);selObjOpen(copy.id);
+}
+
+function drawScaleBar(){
+  // Draw a scale bar bottom-right of canvas
+  const W=cv.width,H=cv.height;
+  // Pick a nice round number for scale bar width
+  const targetPx=80;const mmPerPx=1/zoom;const rawMm=targetPx*mmPerPx;
+  const niceVals=[10,20,50,100,200,500,1000,2000,5000];
+  const niceMm=niceVals.reduce((best,v)=>Math.abs(v-rawMm)<Math.abs(best-rawMm)?v:best,niceVals[0]);
+  const barPx=niceMm*zoom;const x=W-barPx-50,y=H-22;
+  ctx.save();ctx.strokeStyle=getCSSVar('tx3');ctx.fillStyle=getCSSVar('tx3');ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(x,y-4);ctx.lineTo(x,y+4);ctx.moveTo(x,y);ctx.lineTo(x+barPx,y);ctx.moveTo(x+barPx,y-4);ctx.lineTo(x+barPx,y+4);ctx.stroke();
+  const lbl=niceMm>=1000?(niceMm/1000).toFixed(0)+'m':niceMm+'mm';
+  ctx.font='700 9px JetBrains Mono,monospace';ctx.textAlign='center';ctx.fillText(lbl,x+barPx/2,y-7);
+  ctx.restore();
+}
 
 // ═══════════════════════════════════════════════
 // TOOLS
@@ -1100,6 +1169,7 @@ function panelHtml(){
     <label class="chk"><input type="checkbox" ${o.tiled?'checked':''} onchange="sp(${o.id},'tiled',this.checked)"><span>Tile this floor</span></label>
     ${o.tiled?`<div style="margin-top:8px">
     <div class="row"><label class="lbl">Tile W × H (mm)</label><div class="dual"><div class="row"><input class="inp" type="number" value="${o.tileW}" min="10" inputmode="numeric" onchange="sp(${o.id},'tileW',+this.value)"></div><div class="row"><input class="inp" type="number" value="${o.tileH}" min="10" inputmode="numeric" onchange="sp(${o.id},'tileH',+this.value)"></div></div></div>
+    <div class="row"><label class="lbl">Presets</label><div style="display:flex;flex-wrap:wrap;gap:3px">${[[200,200],[300,300],[300,600],[450,450],[600,600],[600,1200]].map(([w,h])=>`<button class="btn btn-ol" style="flex:0 0 auto;width:auto;padding:3px 7px;font-size:10px" onclick="sp(${o.id},'tileW',${w});sp(${o.id},'tileH',${h})">${w}×${h}</button>`).join('')}</div></div>
     <div class="row"><label class="lbl">Thickness (mm)</label><input class="inp" type="number" value="${o.tileThick||8}" min="3" max="30" inputmode="numeric" onchange="sp(${o.id},'tileThick',+this.value)"></div>
     <div class="row"><label class="lbl">Tile Colour</label><div class="color-row"><input type="color" value="${o.tileColor||'#e0d4c0'}" oninput="sp(${o.id},'tileColor',this.value)"><input class="inp" type="text" value="${o.tileColor||'#e0d4c0'}" oninput="sp(${o.id},'tileColor',this.value)" style="flex:1"></div></div>
     <div class="row"><label class="lbl">Price / m² ($)</label><input class="inp" type="number" value="${o.tilePrice}" min="0" step="0.01" inputmode="decimal" onchange="sp(${o.id},'tilePrice',+this.value)"></div>
@@ -1121,6 +1191,7 @@ function panelHtml(){
     ${o.tileOrigin?`<div class="stat"><span class="sl">Origin</span><span class="sv">${Math.round(o.tileOrigin.x)}, ${Math.round(o.tileOrigin.y)} mm</span></div>`:''}
     </div>`:''}<div class="sec">
     <button class="btn btn-ol" onclick="enterFloorEdit(${o.id})" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit Shape</button>
+    <button class="btn btn-ol" onclick="duplicateFloor(${o.id})" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Duplicate Floor</button>
     <button class="btn btn-red" onclick="deleteSelected()">Delete Floor</button></div>`;
     return{icon:'⬜',cls:'fl',title:o.name||'Floor',sub:'double-click to edit shape',body};
   }
@@ -1260,17 +1331,17 @@ function quoteDocHTML(){
   const ac=getAC();
   let mat=0,lab=0,html='';
 
-  if(floors.length){html+=`<div class="q-sec"><div class="q-sec-t">Floor Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Area</th><th>Tile Size</th><th>Wastage</th><th>Tiles Est.</th><th>$/m²</th><th class="pr" style="color:${ac}">Materials</th></tr></thead><tbody>`;for(const f of floors){const area=polyArea(f.vertices)/1e6;if(f.tiled){const tiles=Math.ceil(area*(1+(f.wastage||10)/100)*1e6/(f.tileW*f.tileH)),sub=area*(1+(f.wastage||10)/100)*f.tilePrice;mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td>${f.tileW}×${f.tileH}mm</td><td>${f.wastage||10}%</td><td>${tiles}</td><td>$${f.tilePrice.toFixed(2)}</td><td class="pr" style="color:${ac}">$${sub.toFixed(2)}</td></tr>`;}else{html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td class="na" colspan="4">Not tiled</td><td class="pr na">—</td></tr>`;}}html+='</tbody></table></div>';}
-  if(tf.length){html+=`<div class="q-sec"><div class="q-sec-t">Grout Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Joint</th><th>Est. kg</th><th>Bags</th><th>$/bag</th><th class="pr" style="color:${ac}">Materials</th></tr></thead><tbody>`;for(const f of tf){const kg=estimateGroutKg(f),bags=Math.ceil(kg/Math.max(0.1,f.groutBagSizeKg||2)),sub=bags*(f.groutBagPrice||0);mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${f.groutW}mm</td><td>${kg.toFixed(2)} kg</td><td>${bags}×${f.groutBagSizeKg||2}kg</td><td>$${(f.groutBagPrice||0).toFixed(2)}</td><td class="${sub?'pr':'na'}"${sub?` style="color:${ac}"`:''} >${sub?'$'+sub.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
-  if(drains.length){html+=`<div class="q-sec"><div class="q-sec-t">Drain Covers</div><table class="q-tbl"><thead><tr><th>Item</th><th>Size</th><th>Qty</th><th class="pr" style="color:${ac}">Cost</th></tr></thead><tbody>`;for(const d of drains){const c=d.cost||0;mat+=c;html+=`<tr><td>${esc(d.name)}</td><td>${d.cw}×${d.ch}mm</td><td>1</td><td class="${c?'pr':'na'}"${c?` style="color:${ac}"`:''} >${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
-  if(screens.length){html+=`<div class="q-sec"><div class="q-sec-t">Shower Screens</div><table class="q-tbl"><thead><tr><th>Item</th><th>Length</th><th>Thickness</th><th>Qty</th><th class="pr" style="color:${ac}">Cost</th></tr></thead><tbody>`;for(const s of screens){const c=s.cost||0;mat+=c;html+=`<tr><td>${esc(s.name)}</td><td>${s.len}mm</td><td>${s.thick}mm</td><td>1</td><td class="${c?'pr':'na'}"${c?` style="color:${ac}"`:''} >${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
+  if(floors.length){html+=`<div class="q-sec"><div class="q-sec-t">Floor Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Area</th><th>Tile Size</th><th>Wastage</th><th>Tiles Est.</th><th>$/m²</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of floors){const area=polyArea(f.vertices)/1e6;if(f.tiled){const tiles=Math.ceil(area*(1+(f.wastage||10)/100)*1e6/(f.tileW*f.tileH)),sub=area*(1+(f.wastage||10)/100)*f.tilePrice;mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td>${f.tileW}×${f.tileH}mm</td><td>${f.wastage||10}%</td><td>${tiles}</td><td>$${f.tilePrice.toFixed(2)}</td><td class="pr" $${sub.toFixed(2)}</td></tr>`;}else{html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td class="na" colspan="4">Not tiled</td><td class="pr na">—</td></tr>`;}}html+='</tbody></table></div>';}
+  if(tf.length){html+=`<div class="q-sec"><div class="q-sec-t">Grout Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Joint</th><th>Est. kg</th><th>Bags</th><th>$/bag</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of tf){const kg=estimateGroutKg(f),bags=Math.ceil(kg/Math.max(0.1,f.groutBagSizeKg||2)),sub=bags*(f.groutBagPrice||0);mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${f.groutW}mm</td><td>${kg.toFixed(2)} kg</td><td>${bags}×${f.groutBagSizeKg||2}kg</td><td>$${(f.groutBagPrice||0).toFixed(2)}</td><td class="${sub?'pr':'na'}">${sub?'$'+sub.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
+  if(drains.length){html+=`<div class="q-sec"><div class="q-sec-t">Drain Covers</div><table class="q-tbl"><thead><tr><th>Item</th><th>Size</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const d of drains){const c=d.cost||0;mat+=c;html+=`<tr><td>${esc(d.name)}</td><td>${d.cw}×${d.ch}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
+  if(screens.length){html+=`<div class="q-sec"><div class="q-sec-t">Shower Screens</div><table class="q-tbl"><thead><tr><th>Item</th><th>Length</th><th>Thickness</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const s of screens){const c=s.cost||0;mat+=c;html+=`<tr><td>${esc(s.name)}</td><td>${s.len}mm</td><td>${s.thick}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
 
   const labRows=[];
-  if(tRate>0&&tHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100),0),hrs=ta*tHrs,sub=hrs*tRate;lab+=sub;labRows.push(`<tr><td>Tiling</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${tRate}/hr</td><td class="pr" style="color:${ac}">$${sub.toFixed(2)}</td></tr>`);}
-  if(gRate>0&&gHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6,0),hrs=ta*gHrs,sub=hrs*gRate;lab+=sub;labRows.push(`<tr><td>Grouting</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${gRate}/hr</td><td class="pr" style="color:${ac}">$${sub.toFixed(2)}</td></tr>`);}
-  if(mRate>0&&dHrs>0&&drains.length){const hrs=drains.length*dHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Drain Install</td><td>${drains.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" style="color:${ac}">$${sub.toFixed(2)}</td></tr>`);}
-  if(mRate>0&&sHrs>0&&screens.length){const hrs=screens.length*sHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Screen Install</td><td>${screens.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" style="color:${ac}">$${sub.toFixed(2)}</td></tr>`);}
-  if(labRows.length)html+=`<div class="q-sec"><div class="q-sec-t">Labour</div><table class="q-tbl"><thead><tr><th>Task</th><th>Qty</th><th>Hours</th><th>Rate</th><th class="pr" style="color:${ac}">Labour</th></tr></thead><tbody>${labRows.join('')}</tbody></table></div>`;
+  if(tRate>0&&tHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100),0),hrs=ta*tHrs,sub=hrs*tRate;lab+=sub;labRows.push(`<tr><td>Tiling</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${tRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
+  if(gRate>0&&gHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6,0),hrs=ta*gHrs,sub=hrs*gRate;lab+=sub;labRows.push(`<tr><td>Grouting</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${gRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
+  if(mRate>0&&dHrs>0&&drains.length){const hrs=drains.length*dHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Drain Install</td><td>${drains.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
+  if(mRate>0&&sHrs>0&&screens.length){const hrs=screens.length*sHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Screen Install</td><td>${screens.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
+  if(labRows.length)html+=`<div class="q-sec"><div class="q-sec-t">Labour</div><table class="q-tbl"><thead><tr><th>Task</th><th>Qty</th><th>Hours</th><th>Rate</th><th class="pr" Labour</th></tr></thead><tbody>${labRows.join('')}</tbody></table></div>`;
 
   const grand=mat+lab;
   const totRows=[];if(mat)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);if(lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
@@ -1309,7 +1380,7 @@ body{font-family:'Barlow Condensed',Arial,sans-serif;background:#d8d4ce;padding:
 table{width:100%;border-collapse:collapse}th{padding:5px 8px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aaa;border-bottom:2px solid #f0ebe0}
 td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle;white-space:nowrap}
 td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444;white-space:nowrap}
-td.pr{text-align:right;font-weight:700;color:${ac}}td.na{color:#ccc;text-align:right}
+td.pr,th.pr{text-align:right;font-weight:700;color:#1a1a2e}td.na{color:#ccc;text-align:right}
 .q-totals{max-width:340px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
 .q-tot-inner{padding:9px 14px}.q-tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:#888;border-bottom:1px solid #f5f0ea}
 .q-tot-row:last-child{border-bottom:none}.q-tot-row .tv{font-family:'JetBrains Mono',monospace;color:#333;font-size:11px}
