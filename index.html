@@ -179,7 +179,7 @@ select.inp{cursor:pointer}
 .quote-doc{width:210mm;min-height:297mm;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.2);font-family:'Barlow Condensed',Arial,sans-serif;display:flex;flex-direction:column;flex-shrink:0}
 .q-hdr{padding:22px 26px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
 .q-hdr-left{display:flex;align-items:flex-start;gap:14px}
-.q-logo-img{max-height:56px;max-width:120px;object-fit:contain;flex-shrink:0;display:block;cursor:pointer}
+.q-logo-img{width:58px;height:58px;object-fit:fill;flex-shrink:0;display:block;cursor:pointer;border-radius:2px}
 .q-biz-name{font-size:22px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#000;line-height:1.1}
 .q-biz-info{font-size:11px;color:rgba(0,0,0,.6);margin-top:3px;line-height:1.5}
 .q-meta{text-align:right;flex-shrink:0}
@@ -191,10 +191,10 @@ select.inp{cursor:pointer}
 .q-sec-t{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#888;border-bottom:2px solid #f0ebe0;padding-bottom:4px;margin-bottom:9px}
 .q-tbl{width:100%;border-collapse:collapse}
 .q-tbl th{padding:5px 8px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aaa;border-bottom:2px solid #f0ebe0}
-.q-tbl td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle}
-.q-tbl td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444}
-.q-tbl td.pr{text-align:right;font-weight:700}.q-tbl td.na{color:#ccc}
-.q-totals{max-width:300px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
+.q-tbl td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle;white-space:nowrap}
+.q-tbl td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444;white-space:nowrap}
+.q-tbl td.pr{text-align:right;font-weight:700}.q-tbl td.na{color:#ccc;text-align:right}
+.q-totals{max-width:340px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
 .q-tot-inner{padding:9px 14px}
 .q-tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:#888;border-bottom:1px solid #f5f0ea}
 .q-tot-row:last-child{border-bottom:none}.q-tot-row .tv{font-family:'JetBrains Mono',monospace;color:#333;font-size:11px}
@@ -244,8 +244,8 @@ select.inp{cursor:pointer}
   .coords{bottom:auto;top:8px;left:50%;transform:translateX(-50%)}
   .zoom-wrap{top:auto;bottom:8px;right:8px}
   .finish-bar{display:none!important}
-  .bom-settings{width:100%;display:none}
-  .bom-settings.mob-show{display:flex;flex-direction:column}
+  .bom-settings{width:100%;display:none;min-height:0}
+  .bom-settings.mob-show{display:flex;flex-direction:column;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .bom-preview-wrap.mob-hide{display:none}
   .bom-mob-tabs{display:flex}
   .bom-area{flex-direction:column}
@@ -373,7 +373,13 @@ select.inp{cursor:pointer}
 
 <!-- MOBILE DRAW BAR — in body flex, always accessible -->
 <div id="mob-draw-bar">
-  <button class="mdb-btn udv" onclick="undoLastVertex()"><span class="mk">↩</span>Undo</button>
+  <!-- Drawing phase: undo vertex -->
+  <button class="mdb-btn udv" id="mdb-undo" onclick="undoLastVertex()"><span class="mk">↩</span>Undo</button>
+  <!-- Closed phase: constraint buttons (hidden during drawing) -->
+  <button class="mdb-btn" id="mdb-H" onclick="triggerConstraint('H')" style="display:none"><span class="mk">H</span>Horiz</button>
+  <button class="mdb-btn" id="mdb-V" onclick="triggerConstraint('V')" style="display:none"><span class="mk">V</span>Vert</button>
+  <button class="mdb-btn" id="mdb-A" onclick="triggerConstraint('A')" style="display:none"><span class="mk">A</span>Angle</button>
+  <button class="mdb-btn" id="mdb-D" onclick="triggerConstraint('D')" style="display:none"><span class="mk">D</span>Dim</button>
   <button class="mdb-btn cxl" onclick="cancelDraw()"><span class="mk">✕</span>Cancel</button>
   <button class="mdb-btn ok" id="mdb-ok" onclick="finaliseFloor()" disabled><span class="mk">✓</span>Finish</button>
 </div>
@@ -541,6 +547,7 @@ let dragPending=false,dragPendingSp=null;
 let lastTouchPos={x:0,y:0};
 let lastTapT=0,lastTapPos={x:0,y:0};
 let longPressT=null;
+let touchHoldTimer=null,touchHoldSp=null; // tap vs hold for drain/screen
 const isMob=()=>window.innerWidth<=700;
 
 // ═══════════════════════════════════════════════
@@ -804,6 +811,10 @@ function updateConUI(){
   }
   const mdb=document.getElementById('mob-draw-bar');
   mdb.classList.toggle('vis',tool==='draw'&&drawPhase!=='idle');
+  // Mobile draw bar button visibility: drawing=show Undo, closed=show H/V/A/D
+  const isClos=drawPhase==='closed';
+  const mdbu=document.getElementById('mdb-undo');if(mdbu)mdbu.style.display=isClos?'none':'';
+  ['H','V','A','D'].forEach(t=>{const b=document.getElementById('mdb-'+t);if(!b)return;b.style.display=isClos?'':'none';b.classList.toggle('pend',pendingConstraint===t||(angleEdge1!==null&&t==='A'));});
   const mok=document.getElementById('mdb-ok');if(mok){mok.disabled=drawPhase!=='closed';mok.textContent=editingFloorId?'Save':'Finish';}
   const fb=document.getElementById('finish-bar'),fok=document.getElementById('fbtn-ok'),fi=document.getElementById('fbtn-info');
   const fbShow=tool==='draw'&&drawPhase!=='idle'&&!isMob();
@@ -811,7 +822,7 @@ function updateConUI(){
   if(fok){fok.disabled=drawPhase!=='closed';fok.textContent=editingFloorId?'✓ Save Edits':'✓ Finish';}
   if(fi)fi.textContent=drawPhase==='closed'?`${dv.length} pts — closed`:dv.length<3?`${dv.length}/3`:dv.length+' pts';
   const badge=document.getElementById('cbadge');
-  if(drawPhase==='closed'){if(pendingConstraint){const lbls={H:'HORIZONTAL',V:'VERTICAL',A:'ANGLE',D:'LENGTH'};badge.textContent=`→ Click edge: ${lbls[pendingConstraint]}`;badge.style.display='block';}else if(editSelEdge!==null){badge.textContent='EDGE — H V A D to constrain · Del to break';badge.style.display='block';}else{badge.textContent='SHAPE CLOSED · click edge or vertex · H V A D · Finish';badge.style.display='block';}}
+  if(drawPhase==='closed'){if(pendingConstraint){const lbls={H:'HORIZONTAL',V:'VERTICAL',A:'ANGLE',D:'LENGTH'};badge.textContent=`→ Tap edge to set ${lbls[pendingConstraint]}`;badge.style.display='block';}else if(editSelEdge!==null){badge.textContent=isMob()?'EDGE SELECTED — use buttons below to constrain':'EDGE SELECTED — H V A D to constrain · Del to break';badge.style.display='block';}else{badge.textContent=isMob()?'Tap a vertex to drag · tap an edge to select':'SHAPE CLOSED · click edge/vertex · H V A D · Finish';badge.style.display='block';}}
   else if(drawPhase==='drawing'&&dv.length>0){if(cH){badge.textContent='⟺ HORIZONTAL LOCK';badge.style.display='block';}else if(cV){badge.textContent='⟻ VERTICAL LOCK';badge.style.display='block';}else if(keys.has('Shift')){badge.textContent='⇧ 45° SNAP';badge.style.display='block';}else badge.style.display='none';}
   else badge.style.display='none';
   document.getElementById('edit-badge').classList.toggle('vis',editingFloorId!==null&&tool==='draw');
@@ -822,8 +833,8 @@ function updateConUI(){
 // ═══════════════════════════════════════════════
 function hitTest(w){const R=12/zoom;for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='screen'){const ang=o.angle*Math.PI/180;const ep={x:o.x+o.len*Math.cos(ang),y:o.y+o.len*Math.sin(ang)};const{pt}=closestOnSeg(w,{x:o.x,y:o.y},ep);if(dist(w,pt)<R+o.thick/2)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='drain'){const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang),rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;if(Math.abs(rx)<o.cw/2+R&&Math.abs(ry)<o.ch/2+R)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='floor'&&!o._editing&&o.vertices.length>=3&&inPoly(w,o.vertices))return o.id;}return null;}
 function hitOrigin(w){const R=14/zoom;for(const o of objs){if(o.type==='floor'&&!o._editing&&o.tiled&&o.tileOrigin&&dist(w,o.tileOrigin)<R)return o.id;}return null;}
-function hitDrawVertex(w){const R=14/zoom;for(let i=0;i<dv.length;i++)if(dist(w,dv[i])<R)return i;return null;}
-function hitDrawEdge(w){const R=11/zoom,n=dv.length;if(n<2)return null;const limit=drawPhase==='closed'?n:n-1;for(let i=0;i<limit;i++){const a=dv[i],b=dv[(i+1)%n];const{pt}=closestOnSeg(w,a,b);if(dist(w,pt)<R&&dist(w,a)>R*.6&&dist(w,b)>R*.6)return i;}return null;}
+function hitDrawVertex(w){const R=(isMob()?22:14)/zoom;for(let i=0;i<dv.length;i++)if(dist(w,dv[i])<R)return i;return null;}
+function hitDrawEdge(w){const R=(isMob()?18:11)/zoom,n=dv.length;if(n<2)return null;const limit=drawPhase==='closed'?n:n-1;for(let i=0;i<limit;i++){const a=dv[i],b=dv[(i+1)%n];const{pt}=closestOnSeg(w,a,b);if(dist(w,pt)<R&&dist(w,a)>R*.5&&dist(w,b)>R*.5)return i;}return null;}
 
 // ═══════════════════════════════════════════════
 // EVENTS
@@ -846,33 +857,64 @@ cv.addEventListener('touchstart',e=>{
   e.preventDefault();
   if(e.touches.length===2){pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);pinchZ0=zoom;return;}
   const sp=evPt(e);lastTouchPos=sp;
-  // In draw-closed mode: check for vertex drag immediately
+  // In draw-closed mode: vertex/edge selection
   if(tool==='draw'&&drawPhase==='closed'){
     const raw=s2w(sp.x,sp.y);
     const vi=hitDrawVertex(raw);
     if(vi!==null){editSelVert=vi;editSelEdge=null;editDragVert=vi;render();return;}
-    // Edge click (selection only, no constraints via touch)
     const ei=hitDrawEdge(raw);
     if(ei!==null){
       if(pendingConstraint){applyEdgeConstraintDirect(pendingConstraint,ei);pendingConstraint=null;}
       else{editSelEdge=ei;editSelVert=null;}
-      render();return;
+      updateConUI();render();return;
     }
-    editSelVert=null;editSelEdge=null;render();return;
+    editSelVert=null;editSelEdge=null;updateConUI();render();return;
   }
   if(tool==='place-drain'||tool==='place-screen'){handleMove(sp,true);return;}
+  // Check if hitting a drain or screen — hold-to-drag, tap-to-panel
+  const raw=s2w(sp.x,sp.y);
+  const hid=hitTest(raw);
+  if(hid!==null){
+    const o=objs.find(ob=>ob.id===hid);
+    if(o&&(o.type==='drain'||o.type==='screen')){
+      selObj(hid); // visual select immediately
+      dragOff={x:raw.x-o.x,y:raw.y-o.y};
+      touchHoldSp=sp;
+      // After 350ms without movement = drag mode; quick release = open sheet
+      touchHoldTimer=setTimeout(()=>{
+        touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';
+      },350);
+      return;
+    }
+  }
   clearTimeout(longPressT);
-  longPressT=setTimeout(()=>{longPressT=null;const raw=s2w(sp.x,sp.y);const hid=hitTest(raw);if(hid!==null){selObj(hid);openSheet();}},500);
+  longPressT=setTimeout(()=>{longPressT=null;const r=s2w(sp.x,sp.y);const h=hitTest(r);if(h!==null){selObj(h);openSheet();}},500);
   handleDown(sp,true);
 },{passive:false});
 cv.addEventListener('touchmove',e=>{
   e.preventDefault();clearTimeout(longPressT);longPressT=null;
   if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);return;}
-  lastTouchPos=evPt(e);handleMove(lastTouchPos,true);
+  lastTouchPos=evPt(e);
+  // If holding drain/screen and moved enough, activate drag
+  if(touchHoldTimer!==null&&Math.hypot(lastTouchPos.x-touchHoldSp.x,lastTouchPos.y-touchHoldSp.y)>10){
+    clearTimeout(touchHoldTimer);touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';
+  }
+  handleMove(lastTouchPos,true);
 },{passive:false});
 cv.addEventListener('touchend',e=>{
   e.preventDefault();clearTimeout(longPressT);longPressT=null;
   if(tool==='place-drain'||tool==='place-screen'){mw=s2w(lastTouchPos.x,lastTouchPos.y);placeObject(lastTouchPos);return;}
+  // Hold-to-drag resolution for drains/screens
+  if(touchHoldTimer!==null){
+    // Tap: timer still running → quick tap → open sheet
+    clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
+    if(selId!==null)openSheet();
+    handleUp(true);return;
+  }
+  if(touchHoldSp!==null){
+    // Was in drag mode (timer already fired)
+    touchHoldSp=null;handleUp(true);return;
+  }
   if(editDragVert!==null){handleUp(true);return;}
   const sp=evPt(e);const now=Date.now();
   if(now-lastTapT<320&&Math.hypot(sp.x-lastTapPos.x,sp.y-lastTapPos.y)<44){lastTapT=0;handleDbl(sp);}
@@ -1025,7 +1067,7 @@ function selObj(id){selId=id;updatePanel();render();}
 function selObjOpen(id){selId=id;updatePanel();if(isMob())openSheet();render();}
 function sp(id,prop,val){const o=objs.find(o=>o.id===id);if(!o)return;o[prop]=val;const refresh=['tiled','tileW','tileH','groutW','tilePrice','wastage','angle','tileColor','groutColor','groutBagSizeKg','groutBagPrice','tileThick'];if(refresh.includes(prop))updatePanel();render();}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
-function toggleOriginMode(fid){settingOrigin=settingOrigin===fid?null:fid;cv.style.cursor=settingOrigin!=null?'crosshair':'default';updatePanel();render();}
+function toggleOriginMode(fid){settingOrigin=settingOrigin===fid?null:fid;if(settingOrigin!=null&&isMob())closeSheet();cv.style.cursor=settingOrigin!=null?'crosshair':'default';updatePanel();render();}
 
 function panelHtml(){
   if(selId===null){
@@ -1035,13 +1077,11 @@ function panelHtml(){
     <div class="stat"><span class="sl">Total Area</span><span class="sv">${total.toFixed(3)} m²</span></div>
     <div class="stat"><span class="sl">Drains</span><span class="sv">${objs.filter(o=>o.type==='drain').length}</span></div>
     <div class="stat"><span class="sl">Screens</span><span class="sv">${objs.filter(o=>o.type==='screen').length}</span></div>
-    </div><div class="sec"><div class="sec-t">Shortcuts</div>
-    <div class="stat"><span class="sl">Draw</span><span class="sv">F</span></div>
-    <div class="stat"><span class="sl">Edit floor</span><span class="sv">Double-click</span></div>
-    <div class="stat"><span class="sl">H/V axis lock</span><span class="sv">H / V (drawing)</span></div>
-    <div class="stat"><span class="sl">45° snap</span><span class="sv">Hold ⇧</span></div>
-    <div class="stat"><span class="sl">Constrain edge</span><span class="sv">Close → H V A D</span></div>
-    <div class="stat"><span class="sl">Undo / Redo</span><span class="sv">Ctrl Z / Y</span></div>
+    </div><div class="sec"><div class="sec-t">Tips</div>
+    <div class="stat"><span class="sl">Draw floor</span><span class="sv">F / Draw button</span></div>
+    <div class="stat"><span class="sl">Edit floor</span><span class="sv">Double-tap/click</span></div>
+    <div class="stat"><span class="sl">Move drain/screen</span><span class="sv">Hold then drag</span></div>
+    <div class="stat"><span class="sl">Constrain edge</span><span class="sv">Close shape → tap edge → use H V A D buttons</span></div>
     </div>`};
   }
   const o=objs.find(o=>o.id===selId);if(!o)return null;
@@ -1237,7 +1277,7 @@ function quoteDocHTML(){
   const tot=`<div class="q-totals"><div class="q-tot-inner">${totRows.join('')}</div><div class="q-grand-bar" style="background:${ac}"><span class="gl">Total (excl. GST)</span><span class="gv">$${grand.toFixed(2)}</span></div></div>`;
   const notes=qNotes?`<div class="q-notes-box">${qNotes.replace(/\n/g,'<br>')}</div>`:'';
   const bizInfo=[abn?`ABN: ${abn}`:'',addr,phone,email].filter(Boolean).join(' &nbsp;·&nbsp; ');
-  const logoHtml=appSettings.logoDataUrl?`<img src="${appSettings.logoDataUrl}" style="max-height:56px;max-width:120px;object-fit:contain;flex-shrink:0;display:block">`:'' ;
+  const logoHtml=appSettings.logoDataUrl?`<img src="${appSettings.logoDataUrl}" style="width:58px;height:58px;object-fit:fill;flex-shrink:0;display:block;border-radius:2px">`:'' ;
   const empty=!floors.length&&!drains.length&&!screens.length;
 
   return `<div class="q-hdr" style="background:${ac}">
@@ -1267,10 +1307,10 @@ body{font-family:'Barlow Condensed',Arial,sans-serif;background:#d8d4ce;padding:
 .q-body{padding:20px 26px;flex:1}
 .q-sec{margin-bottom:16px}.q-sec-t{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#888;border-bottom:2px solid #f0ebe0;padding-bottom:4px;margin-bottom:9px}
 table{width:100%;border-collapse:collapse}th{padding:5px 8px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aaa;border-bottom:2px solid #f0ebe0}
-td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle}
-td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444}
-td.pr{text-align:right;font-weight:700;color:${ac}}td.na{color:#ccc}
-.q-totals{max-width:300px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
+td{padding:5px 8px;border-bottom:1px solid #f5f0ea;color:#222;font-family:'JetBrains Mono',monospace;font-size:11px;vertical-align:middle;white-space:nowrap}
+td:first-child{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:#444;white-space:nowrap}
+td.pr{text-align:right;font-weight:700;color:${ac}}td.na{color:#ccc;text-align:right}
+.q-totals{max-width:340px;margin-left:auto;margin-top:14px;border:2px solid #f0ebe0;border-radius:4px;overflow:hidden}
 .q-tot-inner{padding:9px 14px}.q-tot-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:#888;border-bottom:1px solid #f5f0ea}
 .q-tot-row:last-child{border-bottom:none}.q-tot-row .tv{font-family:'JetBrains Mono',monospace;color:#333;font-size:11px}
 .q-grand-bar{padding:11px 14px;display:flex;justify-content:space-between;align-items:center}
@@ -1288,8 +1328,31 @@ function printQuote(){
 }
 function exportPDF(){
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>{const b=document.createElement('div');b.style.cssText='position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:6px;font-family:sans-serif;font-size:13px;z-index:9999;text-align:center';b.textContent='Press Ctrl/Cmd+P → Choose \"Save as PDF\" as destination';document.body.appendChild(b);setTimeout(()=>window.print(),300);};<\/script></body></html>`);
+  const grand=quoteGrandTotal();
+  const ac=getAC();
+  const footerExtra=`<div style="margin-top:20px;padding:14px 26px;border-top:2px solid ${ac};display:flex;justify-content:space-between;align-items:flex-end">
+    <div style="font-size:10px;color:#888;font-family:'JetBrains Mono',monospace;max-width:60%;line-height:1.5">
+      This quote is a ballpark figure and is subject to change.<br>Final pricing may vary based on site conditions and material availability.
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:#aaa;font-family:'JetBrains Mono',monospace;margin-bottom:3px">TOTAL (EXCL. GST)</div>
+      <div style="font-size:22px;font-weight:800;color:${ac};font-family:'JetBrains Mono',monospace">$${grand.toFixed(2)}</div>
+    </div>
+  </div>`;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}${footerExtra}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
   w.document.close();
+}
+function quoteGrandTotal(){
+  const floors=objs.filter(o=>o.type==='floor'&&!o._editing),tf=floors.filter(f=>f.tiled);
+  const drains=objs.filter(o=>o.type==='drain'),screens=objs.filter(o=>o.type==='screen');
+  let total=0;
+  tf.forEach(f=>{total+=polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100)*f.tilePrice;const kg=estimateGroutKg(f);total+=Math.ceil(kg/Math.max(0.1,f.groutBagSizeKg||2))*(f.groutBagPrice||0);});
+  drains.forEach(d=>total+=(d.cost||0));screens.forEach(s=>total+=(s.cost||0));
+  const tRate=gn('lab-tile-rate'),tHrs=gn('lab-tile-hrs'),gRate=gn('lab-grout-rate'),gHrs=gn('lab-grout-hrs'),mRate=gn('lab-misc-rate'),dHrs=gn('lab-drain-hrs'),sHrs=gn('lab-screen-hrs');
+  if(tRate>0&&tHrs>0)total+=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100),0)*tHrs*tRate;
+  if(gRate>0&&gHrs>0)total+=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6,0)*gHrs*gRate;
+  if(mRate>0)total+=drains.length*dHrs*mRate+screens.length*sHrs*mRate;
+  return total;
 }
 
 // ═══════════════════════════════════════════════
