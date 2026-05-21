@@ -205,7 +205,8 @@ select.inp{cursor:pointer}
 .q-grand-bar .gl{font-size:13px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#000}
 .q-grand-bar .gv{font-size:22px;font-weight:800;color:#000;font-family:'JetBrains Mono',monospace}
 .q-notes-box{margin-top:14px;padding:11px;background:#fdf9f4;border:1px solid #f0ebe0;border-radius:4px;font-size:11px;color:#666;line-height:1.6}
-.q-footer{padding:12px 26px;border-top:1px solid #f0ebe0;font-size:10px;color:#aaa;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;margin-top:auto}
+.q-footer{padding:12px 26px;border-top:1px solid #f0ebe0;font-size:10px;color:#aaa;display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;margin-top:auto}
+.q-footer span:nth-child(2){flex:1;text-align:center;padding:0 10px;font-style:italic;color:#bbb}
 .q-empty-msg{padding:50px 26px;text-align:center;color:#aaa;font-size:14px;flex:1;display:flex;align-items:center;justify-content:center}
 
 /* MODALS */
@@ -456,6 +457,24 @@ let appSettings={theme:'ocean',logoDataUrl:null,defBiz:'',defABN:'',defPhone:'',
 let cachedAC='#8fe3ff';
 function getAC(){return cachedAC;}
 
+function persistSettings(){
+  try{
+    // Don't store logoDataUrl in localStorage (can exceed quota) - store separately
+    const toStore={...appSettings,logoDataUrl:undefined};
+    localStorage.setItem('tilepro_settings',JSON.stringify(toStore));
+    if(appSettings.logoDataUrl)localStorage.setItem('tilepro_logo',appSettings.logoDataUrl);
+    else localStorage.removeItem('tilepro_logo');
+  }catch(e){console.warn('Settings save failed:',e);}
+}
+function loadPersistedSettings(){
+  try{
+    const raw=localStorage.getItem('tilepro_settings');
+    if(raw){const saved=JSON.parse(raw);Object.assign(appSettings,saved);}
+    const logo=localStorage.getItem('tilepro_logo');
+    if(logo)appSettings.logoDataUrl=logo;
+  }catch(e){console.warn('Settings load failed:',e);}
+}
+
 function applyTheme(name){
   const t=THEMES[name];if(!t)return;
   const r=document.documentElement.style;
@@ -464,11 +483,15 @@ function applyTheme(name){
   appSettings.theme=name;
   document.querySelectorAll('.theme-swatch').forEach(s=>s.classList.toggle('sel',s.dataset.theme===name));
   const cac=document.getElementById('custom-accent');if(cac)cac.value=t.ac;
+  persistSettings();
   render();
 }
 function applyCustomColor(varName,val){
   document.documentElement.style.setProperty('--'+varName,val);
   if(varName==='ac')cachedAC=val;
+  if(!appSettings.customVars)appSettings.customVars={};
+  appSettings.customVars[varName]=val;
+  persistSettings();
   render();
 }
 
@@ -511,16 +534,17 @@ function saveSettings(){
   if(!document.getElementById('q-phone').value&&appSettings.defPhone)document.getElementById('q-phone').value=appSettings.defPhone;
   if(!document.getElementById('q-email').value&&appSettings.defEmail)document.getElementById('q-email').value=appSettings.defEmail;
   if(!document.getElementById('q-notes').value&&appSettings.defNotes)document.getElementById('q-notes').value=appSettings.defNotes;
+  persistSettings();
   closeSettings();refreshQuote();
 }
 
 function handleLogoUpload(inp){
   if(!inp.files[0])return;
   const r=new FileReader();
-  r.onload=e=>{appSettings.logoDataUrl=e.target.result;renderLogoArea();refreshQuote();};
+  r.onload=e=>{appSettings.logoDataUrl=e.target.result;persistSettings();renderLogoArea();refreshQuote();};
   r.readAsDataURL(inp.files[0]);
 }
-function clearLogo(){appSettings.logoDataUrl=null;renderLogoArea();refreshQuote();}
+function clearLogo(){appSettings.logoDataUrl=null;persistSettings();renderLogoArea();refreshQuote();}
 function renderLogoArea(){
   const area=document.getElementById('logo-area');
   if(appSettings.logoDataUrl){
@@ -1039,13 +1063,20 @@ function fitView(){const fl=objs.filter(o=>o.type==='floor'&&!o._editing);if(!fl
 
 function duplicateFloor(fid){
   const fl=objs.find(o=>o.id===fid);if(!fl)return;saveUndo();
-  // Offset by floor bounding box width + 200mm gap
-  let mnx=Infinity,mxx=-Infinity;fl.vertices.forEach(v=>{mnx=Math.min(mnx,v.x);mxx=Math.max(mxx,v.x);});
-  const offset=Math.round((mxx-mnx)+200);
+  // Find the rightmost x of ALL floors so copies never overlap
+  let globalMaxX=-Infinity;
+  objs.filter(o=>o.type==='floor'&&!o._editing).forEach(o=>{
+    o.vertices.forEach(v=>{ globalMaxX=Math.max(globalMaxX,v.x); });
+  });
+  // Get source floor bounding box for width reference
+  let srcMinX=Infinity,srcMinY=Infinity,srcMaxY=-Infinity;
+  fl.vertices.forEach(v=>{srcMinX=Math.min(srcMinX,v.x);srcMinY=Math.min(srcMinY,v.y);srcMaxY=Math.max(srcMaxY,v.y);});
+  // Place copy 200mm to the right of all existing floors, aligned to source Y
+  const offsetX=Math.round(globalMaxX-srcMinX+200);
   const copy=JSON.parse(JSON.stringify(fl));
   copy.id=nid++;copy.name=fl.name+' (Copy)';copy._editing=false;
-  copy.vertices=fl.vertices.map(v=>({x:v.x+offset,y:v.y}));
-  if(copy.tileOrigin)copy.tileOrigin={x:fl.tileOrigin.x+offset,y:fl.tileOrigin.y};
+  copy.vertices=fl.vertices.map(v=>({x:v.x+offsetX,y:v.y}));
+  if(copy.tileOrigin)copy.tileOrigin={x:fl.tileOrigin.x+offsetX,y:fl.tileOrigin.y};
   copy.edgeConstraints=[];
   objs.push(copy);closeSheet();selObjOpen(copy.id);
 }
@@ -1363,7 +1394,7 @@ function quoteDocHTML(){
   </div>
   <div class="q-divider" style="background:${ac}"></div>
   <div class="q-body">${empty?`<div class="q-empty-msg">Draw floors and add objects to generate your quote.</div>`:html+tot+notes}</div>
-  <div class="q-footer"><span>TilePro</span><span>${biz}</span></div>`;
+  <div class="q-footer"><span>TilePro</span><span style="text-align:center;flex:1;padding:0 10px;font-style:italic;color:#bbb">Prices are indicative and may change</span><span>${biz}</span></div>`;
 }
 
 function refreshQuote(){document.getElementById('quote-preview').innerHTML=`<div class="quote-doc">${quoteDocHTML()}</div>`;}
@@ -1393,7 +1424,8 @@ td.pr,th.pr{text-align:right;font-weight:700;color:#1a1a2e}td.na{color:#ccc;text
 .q-grand-bar{padding:11px 14px;display:flex;justify-content:space-between;align-items:center}
 .q-grand-bar .gl{font-size:13px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#000}.q-grand-bar .gv{font-size:22px;font-weight:800;color:#000;font-family:'JetBrains Mono',monospace}
 .q-notes-box{margin-top:14px;padding:11px;background:#fdf9f4;border:1px solid #f0ebe0;border-radius:4px;font-size:11px;color:#666;line-height:1.6}
-.q-footer{padding:12px 26px;border-top:1px solid #f0ebe0;font-size:10px;color:#aaa;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;margin-top:auto}
+.q-footer{padding:12px 26px;border-top:1px solid #f0ebe0;font-size:10px;color:#aaa;display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;margin-top:auto}
+.q-footer span:nth-child(2){flex:1;text-align:center;padding:0 10px;font-style:italic;color:#bbb}
 .q-empty-msg{padding:50px;text-align:center;color:#aaa;font-size:14px}
 @media print{body{padding:0;background:#fff}@page{size:A4;margin:0}.quote-doc{box-shadow:none;min-height:100vh}}`;
 }
@@ -1442,8 +1474,19 @@ function createDefaultRoom(){
 }
 
 window.addEventListener('load',()=>{
-  applyTheme('ocean'); // default theme — also sets cachedAC to #8fe3ff
+  // Restore persisted settings first
+  loadPersistedSettings();
+  // Apply saved theme (or default ocean)
+  applyTheme(appSettings.theme||'ocean');
+  // Restore any per-variable customisations that were saved (stored as CSS custom props in appSettings)
+  if(appSettings.customVars){Object.entries(appSettings.customVars).forEach(([k,v])=>applyCustomColor(k,v));}
   renderLogoArea();
+  // Pre-fill quote fields from saved defaults
+  if(appSettings.defBiz)document.getElementById('q-biz').value=appSettings.defBiz;
+  if(appSettings.defABN)document.getElementById('q-abn').value=appSettings.defABN;
+  if(appSettings.defPhone)document.getElementById('q-phone').value=appSettings.defPhone;
+  if(appSettings.defEmail)document.getElementById('q-email').value=appSettings.defEmail;
+  if(appSettings.defNotes)document.getElementById('q-notes').value=appSettings.defNotes;
   resize();
   pan.x=cv.width/2;pan.y=cv.height/2;
   createDefaultRoom();
