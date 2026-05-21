@@ -36,8 +36,20 @@ header{height:46px;background:var(--sf);border-bottom:2px solid var(--ac);displa
 
 /* TOOLBAR */
 #toolbar{height:42px;background:var(--sf);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 6px;gap:1px;flex-shrink:0;overflow-x:auto}
+/* ── SCROLLBARS ─────────────────────────────── */
+/* WebKit (Chrome, Safari, Edge) */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:99px;transition:background .15s}
+::-webkit-scrollbar-thumb:hover{background:var(--ac)}
+::-webkit-scrollbar-corner{background:transparent}
+/* Firefox */
+*{scrollbar-width:thin;scrollbar-color:var(--bd2) transparent}
+/* Hide toolbar horizontal scrollbar */
 #toolbar::-webkit-scrollbar{height:0}
-.tbtn{display:flex;align-items:center;gap:4px;padding:5px 9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--tx2);cursor:pointer;white-space:nowrap;flex-shrink:0;min-height:30px}
+#toolbar{scrollbar-width:none}
+/* Hide sheet body scrollbar on mobile (gesture-based) */
+.sh-body{scrollbar-width:none}.tbtn{display:flex;align-items:center;gap:4px;padding:5px 9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;border-radius:3px;border:1px solid transparent;background:transparent;color:var(--tx2);cursor:pointer;white-space:nowrap;flex-shrink:0;min-height:30px}
 .tbtn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round}
 .tbtn:hover,.tbtn:active{background:var(--sf2);color:var(--tx)}
 .tbtn.on{background:var(--sf2);color:var(--ac);border-color:var(--bd2)}
@@ -112,8 +124,6 @@ header{height:46px;background:var(--sf);border-bottom:2px solid var(--ac);displa
 .sp-title{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tx2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sp-sub{font-size:9px;color:var(--tx3);letter-spacing:.04em;text-transform:uppercase;margin-top:1px}
 .sp-body{flex:1;overflow-y:auto;overflow-x:hidden}
-.sp-body::-webkit-scrollbar{width:2px}
-.sp-body::-webkit-scrollbar-thumb{background:var(--bd2)}
 
 /* SHARED PANEL PARTS */
 .sec{padding:9px 12px;border-bottom:1px solid var(--bd)}
@@ -161,17 +171,12 @@ select.inp{cursor:pointer}
 .sh-close{position:absolute;right:10px;top:5px;background:none;border:none;color:var(--tx2);font-size:22px;line-height:1;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%}
 .sh-hdr{padding:0 12px 9px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:9px;flex-shrink:0}
 .sh-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(10px + var(--safe-b));overscroll-behavior:contain}
-.sh-body::-webkit-scrollbar{display:none}
 
 /* BOM / QUOTE TAB */
 .bom-area{flex:1;display:none;overflow:hidden;min-height:0}
 .bom-area.show{display:flex}
 .bom-settings{width:295px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
-.bom-settings::-webkit-scrollbar{width:2px}
-.bom-settings::-webkit-scrollbar-thumb{background:var(--bd2)}
 .bom-preview-wrap{flex:1;overflow:auto;background:#d8d4ce;display:flex;flex-direction:column;align-items:center;padding:20px 10px}
-.bom-preview-wrap::-webkit-scrollbar{width:5px}
-.bom-preview-wrap::-webkit-scrollbar-thumb{background:#bbb}
 .bom-act-row{padding:8px 10px;border-bottom:1px solid var(--bd);display:flex;gap:6px;flex-shrink:0}
 .bom-act-row .btn{flex:1}
 .bom-mob-tabs{display:none;padding:7px 8px;background:var(--sf);border-bottom:1px solid var(--bd);gap:6px;flex-shrink:0}
