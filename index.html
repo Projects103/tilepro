@@ -438,9 +438,20 @@ select.inp{cursor:pointer}
   </div>
   <div class="mfld"><label class="mlbl">Default Business Name</label><input class="minp" id="def-biz" placeholder="e.g. Drummond Bathroom Renovations"></div>
   <div class="mfld"><label class="mlbl">Default ABN</label><input class="minp" id="def-abn" placeholder="e.g. 12 345 678 900"></div>
+  <div class="mfld"><label class="mlbl">Default Address</label><input class="minp" id="def-addr" placeholder="e.g. 12 Trade St, Brisbane QLD"></div>
   <div class="mfld"><label class="mlbl">Default Phone</label><input class="minp" id="def-phone" placeholder="e.g. 04xx xxx xxx"></div>
   <div class="mfld"><label class="mlbl">Default Email</label><input class="minp" id="def-email" placeholder="e.g. info@business.com.au"></div>
   <div class="mfld"><label class="mlbl">Default Notes / Terms</label><textarea class="minp" id="def-notes" rows="2" placeholder="e.g. 50% deposit on acceptance." style="resize:vertical;font-size:12px;line-height:1.5"></textarea></div>
+  <div class="sth">Default Labour Rates</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="mfld"><label class="mlbl">Tiler Rate ($/hr)</label><input class="minp" id="def-tile-rate" type="number" min="0" step="5" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld"><label class="mlbl">Tiling (hrs/m²)</label><input class="minp" id="def-tile-hrs" type="number" min="0" step="0.25" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld"><label class="mlbl">Grouter Rate ($/hr)</label><input class="minp" id="def-grout-rate" type="number" min="0" step="5" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld"><label class="mlbl">Grouting (hrs/m²)</label><input class="minp" id="def-grout-hrs" type="number" min="0" step="0.25" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld"><label class="mlbl">Misc Rate ($/hr)</label><input class="minp" id="def-misc-rate" type="number" min="0" step="5" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld"><label class="mlbl">Drain Install (hrs ea.)</label><input class="minp" id="def-drain-hrs" type="number" min="0" step="0.25" placeholder="0" inputmode="decimal"></div>
+    <div class="mfld" style="grid-column:1/-1"><label class="mlbl">Screen Install (hrs ea.)</label><input class="minp" id="def-screen-hrs" type="number" min="0" step="0.25" placeholder="0" inputmode="decimal"></div>
+  </div>
   <div class="mact"><button class="btn btn-ol" onclick="closeSettings()">Cancel</button><button class="btn btn-ac" onclick="saveSettings()">Save Settings</button></div>
 </div></div>
 <input id="logo-upload" type="file" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">
@@ -456,7 +467,7 @@ const THEMES={
   slate:{bg:'#0e0e14',sf:'#16161e',sf2:'#1c1c26',sf3:'#202030',bd:'#26263a',bd2:'#32324e',bd3:'#3e3e5e',ac:'#a060e0',bl:'#5b8def',tx:'#cccce0',tx2:'#7070a0',tx3:'#404060',red:'#e04455',grn:'#2ec880',pur:'#a060e0',label:'Slate'},
 };
 
-let appSettings={theme:'ocean',logoDataUrl:null,defBiz:'',defABN:'',defPhone:'',defEmail:'',defNotes:''};
+let appSettings={theme:'ocean',logoDataUrl:null,defBiz:'',defABN:'',defAddr:'',defPhone:'',defEmail:'',defNotes:'',defTileRate:0,defTileHrs:0,defGroutRate:0,defGroutHrs:0,defMiscRate:0,defDrainHrs:0,defScreenHrs:0};
 let cachedAC='#8fe3ff';
 function getAC(){return cachedAC;}
 
@@ -519,25 +530,51 @@ function buildThemeGrid(){
 function openSettings(){
   document.getElementById('def-biz').value=appSettings.defBiz;
   document.getElementById('def-abn').value=appSettings.defABN;
+  document.getElementById('def-addr').value=appSettings.defAddr;
   document.getElementById('def-phone').value=appSettings.defPhone;
   document.getElementById('def-email').value=appSettings.defEmail;
   document.getElementById('def-notes').value=appSettings.defNotes;
+  document.getElementById('def-tile-rate').value=appSettings.defTileRate||'';
+  document.getElementById('def-tile-hrs').value=appSettings.defTileHrs||'';
+  document.getElementById('def-grout-rate').value=appSettings.defGroutRate||'';
+  document.getElementById('def-grout-hrs').value=appSettings.defGroutHrs||'';
+  document.getElementById('def-misc-rate').value=appSettings.defMiscRate||'';
+  document.getElementById('def-drain-hrs').value=appSettings.defDrainHrs||'';
+  document.getElementById('def-screen-hrs').value=appSettings.defScreenHrs||'';
   buildThemeGrid();
-  renderLogoArea(); // populate logo in both locations
+  renderLogoArea();
   document.getElementById('settings-movl').classList.add('show');
 }
 function closeSettings(){document.getElementById('settings-movl').classList.remove('show');}
 function saveSettings(){
   appSettings.defBiz=document.getElementById('def-biz').value;
   appSettings.defABN=document.getElementById('def-abn').value;
+  appSettings.defAddr=document.getElementById('def-addr').value;
   appSettings.defPhone=document.getElementById('def-phone').value;
   appSettings.defEmail=document.getElementById('def-email').value;
   appSettings.defNotes=document.getElementById('def-notes').value;
+  appSettings.defTileRate=parseFloat(document.getElementById('def-tile-rate').value)||0;
+  appSettings.defTileHrs=parseFloat(document.getElementById('def-tile-hrs').value)||0;
+  appSettings.defGroutRate=parseFloat(document.getElementById('def-grout-rate').value)||0;
+  appSettings.defGroutHrs=parseFloat(document.getElementById('def-grout-hrs').value)||0;
+  appSettings.defMiscRate=parseFloat(document.getElementById('def-misc-rate').value)||0;
+  appSettings.defDrainHrs=parseFloat(document.getElementById('def-drain-hrs').value)||0;
+  appSettings.defScreenHrs=parseFloat(document.getElementById('def-screen-hrs').value)||0;
+  // Apply to quote fields
   if(!document.getElementById('q-biz').value&&appSettings.defBiz)document.getElementById('q-biz').value=appSettings.defBiz;
   if(!document.getElementById('q-abn').value&&appSettings.defABN)document.getElementById('q-abn').value=appSettings.defABN;
+  if(!document.getElementById('q-addr').value&&appSettings.defAddr)document.getElementById('q-addr').value=appSettings.defAddr;
   if(!document.getElementById('q-phone').value&&appSettings.defPhone)document.getElementById('q-phone').value=appSettings.defPhone;
   if(!document.getElementById('q-email').value&&appSettings.defEmail)document.getElementById('q-email').value=appSettings.defEmail;
   if(!document.getElementById('q-notes').value&&appSettings.defNotes)document.getElementById('q-notes').value=appSettings.defNotes;
+  // Always overwrite labour rates (they default to 0 so always apply saved values)
+  if(appSettings.defTileRate)document.getElementById('lab-tile-rate').value=appSettings.defTileRate;
+  if(appSettings.defTileHrs)document.getElementById('lab-tile-hrs').value=appSettings.defTileHrs;
+  if(appSettings.defGroutRate)document.getElementById('lab-grout-rate').value=appSettings.defGroutRate;
+  if(appSettings.defGroutHrs)document.getElementById('lab-grout-hrs').value=appSettings.defGroutHrs;
+  if(appSettings.defMiscRate)document.getElementById('lab-misc-rate').value=appSettings.defMiscRate;
+  if(appSettings.defDrainHrs)document.getElementById('lab-drain-hrs').value=appSettings.defDrainHrs;
+  if(appSettings.defScreenHrs)document.getElementById('lab-screen-hrs').value=appSettings.defScreenHrs;
   persistSettings();
   closeSettings();refreshQuote();
 }
@@ -1492,9 +1529,17 @@ window.addEventListener('load',()=>{
   // Pre-fill quote fields from saved defaults
   if(appSettings.defBiz)document.getElementById('q-biz').value=appSettings.defBiz;
   if(appSettings.defABN)document.getElementById('q-abn').value=appSettings.defABN;
+  if(appSettings.defAddr)document.getElementById('q-addr').value=appSettings.defAddr;
   if(appSettings.defPhone)document.getElementById('q-phone').value=appSettings.defPhone;
   if(appSettings.defEmail)document.getElementById('q-email').value=appSettings.defEmail;
   if(appSettings.defNotes)document.getElementById('q-notes').value=appSettings.defNotes;
+  if(appSettings.defTileRate)document.getElementById('lab-tile-rate').value=appSettings.defTileRate;
+  if(appSettings.defTileHrs)document.getElementById('lab-tile-hrs').value=appSettings.defTileHrs;
+  if(appSettings.defGroutRate)document.getElementById('lab-grout-rate').value=appSettings.defGroutRate;
+  if(appSettings.defGroutHrs)document.getElementById('lab-grout-hrs').value=appSettings.defGroutHrs;
+  if(appSettings.defMiscRate)document.getElementById('lab-misc-rate').value=appSettings.defMiscRate;
+  if(appSettings.defDrainHrs)document.getElementById('lab-drain-hrs').value=appSettings.defDrainHrs;
+  if(appSettings.defScreenHrs)document.getElementById('lab-screen-hrs').value=appSettings.defScreenHrs;
   resize();
   pan.x=cv.width/2;pan.y=cv.height/2;
   createDefaultRoom();
