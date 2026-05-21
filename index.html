@@ -846,7 +846,7 @@ function updateConUI(){
 // HIT TESTS
 // ═══════════════════════════════════════════════
 function hitTest(w){const R=12/zoom;for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='screen'){const ang=o.angle*Math.PI/180;const ep={x:o.x+o.len*Math.cos(ang),y:o.y+o.len*Math.sin(ang)};const{pt}=closestOnSeg(w,{x:o.x,y:o.y},ep);if(dist(w,pt)<R+o.thick/2)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='drain'){const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang),rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;if(Math.abs(rx)<o.cw/2+R&&Math.abs(ry)<o.ch/2+R)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='floor'&&!o._editing&&o.vertices.length>=3&&inPoly(w,o.vertices))return o.id;}return null;}
-function hitOrigin(w){const R=14/zoom;for(const o of objs){if(o.type==='floor'&&!o._editing&&o.tiled&&o.tileOrigin&&dist(w,o.tileOrigin)<R)return o.id;}return null;}
+function hitOrigin(w){const R=(isMob()?22:14)/zoom;for(const o of objs){if(o.type==='floor'&&!o._editing&&o.tiled&&o.tileOrigin&&dist(w,o.tileOrigin)<R)return o.id;}return null;}
 function hitDrawVertex(w){const R=(isMob()?22:14)/zoom;for(let i=0;i<dv.length;i++)if(dist(w,dv[i])<R)return i;return null;}
 function hitDrawEdge(w){const R=(isMob()?18:11)/zoom,n=dv.length;if(n<2)return null;const limit=drawPhase==='closed'?n:n-1;for(let i=0;i<limit;i++){const a=dv[i],b=dv[(i+1)%n];const{pt}=closestOnSeg(w,a,b);if(dist(w,pt)<R&&dist(w,a)>R*.5&&dist(w,b)>R*.5)return i;}return null;}
 
@@ -897,6 +897,9 @@ cv.addEventListener('touchstart',e=>{
 
   // Empty space: pan immediately
   if(hid===null){
+    // Check if tapping a tile origin handle (drag without needing button press)
+    const oid=hitOrigin(raw);
+    if(oid!==null){dragOriginId=oid;dragPending=true;dragPendingSp=sp;return;}
     panning=true;panSt=sp;panO={...pan};
     return;
   }
@@ -953,9 +956,10 @@ cv.addEventListener('touchend',e=>{
   if(touchHoldTimer!==null){
     clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
     if(selId!==null)openSheet();
+    dragOriginId=null;dragPending=false;
     handleUp(true);return;
   }
-  if(touchHoldSp!==null){touchHoldSp=null;handleUp(true);return;}
+  if(touchHoldSp!==null){touchHoldSp=null;dragOriginId=null;handleUp(true);return;}
   if(editDragVert!==null){handleUp(true);return;}
 
   // Double-tap detection for everything else
@@ -1035,13 +1039,15 @@ function fitView(){const fl=objs.filter(o=>o.type==='floor'&&!o._editing);if(!fl
 
 function duplicateFloor(fid){
   const fl=objs.find(o=>o.id===fid);if(!fl)return;saveUndo();
-  const offset=200;
+  // Offset by floor bounding box width + 200mm gap
+  let mnx=Infinity,mxx=-Infinity;fl.vertices.forEach(v=>{mnx=Math.min(mnx,v.x);mxx=Math.max(mxx,v.x);});
+  const offset=Math.round((mxx-mnx)+200);
   const copy=JSON.parse(JSON.stringify(fl));
-  copy.id=nid++;copy.name=fl.name+' Copy';
-  copy._editing=false;
-  copy.vertices=fl.vertices.map(v=>({x:v.x+offset,y:v.y+offset}));
-  if(copy.tileOrigin)copy.tileOrigin={x:fl.tileOrigin.x+offset,y:fl.tileOrigin.y+offset};
-  objs.push(copy);selObjOpen(copy.id);
+  copy.id=nid++;copy.name=fl.name+' (Copy)';copy._editing=false;
+  copy.vertices=fl.vertices.map(v=>({x:v.x+offset,y:v.y}));
+  if(copy.tileOrigin)copy.tileOrigin={x:fl.tileOrigin.x+offset,y:fl.tileOrigin.y};
+  copy.edgeConstraints=[];
+  objs.push(copy);closeSheet();selObjOpen(copy.id);
 }
 
 function drawScaleBar(){
@@ -1331,17 +1337,17 @@ function quoteDocHTML(){
   const ac=getAC();
   let mat=0,lab=0,html='';
 
-  if(floors.length){html+=`<div class="q-sec"><div class="q-sec-t">Floor Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Area</th><th>Tile Size</th><th>Wastage</th><th>Tiles Est.</th><th>$/m²</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of floors){const area=polyArea(f.vertices)/1e6;if(f.tiled){const tiles=Math.ceil(area*(1+(f.wastage||10)/100)*1e6/(f.tileW*f.tileH)),sub=area*(1+(f.wastage||10)/100)*f.tilePrice;mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td>${f.tileW}×${f.tileH}mm</td><td>${f.wastage||10}%</td><td>${tiles}</td><td>$${f.tilePrice.toFixed(2)}</td><td class="pr" $${sub.toFixed(2)}</td></tr>`;}else{html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td class="na" colspan="4">Not tiled</td><td class="pr na">—</td></tr>`;}}html+='</tbody></table></div>';}
+  if(floors.length){html+=`<div class="q-sec"><div class="q-sec-t">Floor Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Area</th><th>Tile Size</th><th>Wastage</th><th>Tiles Est.</th><th>$/m²</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of floors){const area=polyArea(f.vertices)/1e6;if(f.tiled){const tiles=Math.ceil(area*(1+(f.wastage||10)/100)*1e6/(f.tileW*f.tileH)),sub=area*(1+(f.wastage||10)/100)*f.tilePrice;mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td>${f.tileW}×${f.tileH}mm</td><td>${f.wastage||10}%</td><td>${tiles}</td><td>$${f.tilePrice.toFixed(2)}</td><td class="pr">$${sub.toFixed(2)}</td></tr>`;}else{html+=`<tr><td>${esc(f.name)}</td><td>${area.toFixed(2)} m²</td><td class="na" colspan="4">Not tiled</td><td class="pr na">—</td></tr>`;}}html+='</tbody></table></div>';}
   if(tf.length){html+=`<div class="q-sec"><div class="q-sec-t">Grout Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Joint</th><th>Est. kg</th><th>Bags</th><th>$/bag</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of tf){const kg=estimateGroutKg(f),bags=Math.ceil(kg/Math.max(0.1,f.groutBagSizeKg||2)),sub=bags*(f.groutBagPrice||0);mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${f.groutW}mm</td><td>${kg.toFixed(2)} kg</td><td>${bags}×${f.groutBagSizeKg||2}kg</td><td>$${(f.groutBagPrice||0).toFixed(2)}</td><td class="${sub?'pr':'na'}">${sub?'$'+sub.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
   if(drains.length){html+=`<div class="q-sec"><div class="q-sec-t">Drain Covers</div><table class="q-tbl"><thead><tr><th>Item</th><th>Size</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const d of drains){const c=d.cost||0;mat+=c;html+=`<tr><td>${esc(d.name)}</td><td>${d.cw}×${d.ch}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
   if(screens.length){html+=`<div class="q-sec"><div class="q-sec-t">Shower Screens</div><table class="q-tbl"><thead><tr><th>Item</th><th>Length</th><th>Thickness</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const s of screens){const c=s.cost||0;mat+=c;html+=`<tr><td>${esc(s.name)}</td><td>${s.len}mm</td><td>${s.thick}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
 
   const labRows=[];
-  if(tRate>0&&tHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100),0),hrs=ta*tHrs,sub=hrs*tRate;lab+=sub;labRows.push(`<tr><td>Tiling</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${tRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
-  if(gRate>0&&gHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6,0),hrs=ta*gHrs,sub=hrs*gRate;lab+=sub;labRows.push(`<tr><td>Grouting</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${gRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
-  if(mRate>0&&dHrs>0&&drains.length){const hrs=drains.length*dHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Drain Install</td><td>${drains.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
-  if(mRate>0&&sHrs>0&&screens.length){const hrs=screens.length*sHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Screen Install</td><td>${screens.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr" $${sub.toFixed(2)}</td></tr>`);}
-  if(labRows.length)html+=`<div class="q-sec"><div class="q-sec-t">Labour</div><table class="q-tbl"><thead><tr><th>Task</th><th>Qty</th><th>Hours</th><th>Rate</th><th class="pr" Labour</th></tr></thead><tbody>${labRows.join('')}</tbody></table></div>`;
+  if(tRate>0&&tHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6*(1+(f.wastage||10)/100),0),hrs=ta*tHrs,sub=hrs*tRate;lab+=sub;labRows.push(`<tr><td>Tiling</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${tRate}/hr</td><td class="pr">$${sub.toFixed(2)}</td></tr>`);}
+  if(gRate>0&&gHrs>0&&tf.length){const ta=tf.reduce((s,f)=>s+polyArea(f.vertices)/1e6,0),hrs=ta*gHrs,sub=hrs*gRate;lab+=sub;labRows.push(`<tr><td>Grouting</td><td>${ta.toFixed(2)} m²</td><td>${hrs.toFixed(1)} hrs</td><td>$${gRate}/hr</td><td class="pr">$${sub.toFixed(2)}</td></tr>`);}
+  if(mRate>0&&dHrs>0&&drains.length){const hrs=drains.length*dHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Drain Install</td><td>${drains.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr">$${sub.toFixed(2)}</td></tr>`);}
+  if(mRate>0&&sHrs>0&&screens.length){const hrs=screens.length*sHrs,sub=hrs*mRate;lab+=sub;labRows.push(`<tr><td>Screen Install</td><td>${screens.length}</td><td>${hrs.toFixed(1)} hrs</td><td>$${mRate}/hr</td><td class="pr">$${sub.toFixed(2)}</td></tr>`);}
+  if(labRows.length)html+=`<div class="q-sec"><div class="q-sec-t">Labour</div><table class="q-tbl"><thead><tr><th>Task</th><th>Qty</th><th>Hours</th><th>Rate</th><th class="pr">Labour</th></tr></thead><tbody>${labRows.join('')}</tbody></table></div>`;
 
   const grand=mat+lab;
   const totRows=[];if(mat)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);if(lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
