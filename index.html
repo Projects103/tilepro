@@ -1431,8 +1431,14 @@ function quoteDocHTML(){
   if(labRows.length)html+=`<div class="q-sec"><div class="q-sec-t">Labour</div><table class="q-tbl"><thead><tr><th>Task</th><th>Qty</th><th>Hours</th><th>Rate</th><th class="pr">Labour</th></tr></thead><tbody>${labRows.join('')}</tbody></table></div>`;
 
   const grand=mat+lab;
-  const totRows=[];if(mat)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);if(lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
-  const tot=`<div class="q-totals"><div class="q-tot-inner">${totRows.join('')}</div><div class="q-grand-bar" style="background:${ac}"><span class="gl">Total (excl. GST)</span><span class="gv">$${grand.toFixed(2)}</span></div></div>`;
+  const gst=grand*0.1;
+  const grandWithGST=grand+gst;
+  const totRows=[];
+  if(mat)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);
+  if(lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
+  totRows.push(`<div class="q-tot-row"><span>Subtotal (excl. GST)</span><span class="tv">$${grand.toFixed(2)}</span></div>`);
+  totRows.push(`<div class="q-tot-row"><span>GST (10%)</span><span class="tv">$${gst.toFixed(2)}</span></div>`);
+  const tot=`<div class="q-totals"><div class="q-tot-inner">${totRows.join('')}</div><div class="q-grand-bar" style="background:${ac}"><span class="gl">Total (incl. GST)</span><span class="gv">$${grandWithGST.toFixed(2)}</span></div></div>`;
   const notes=qNotes?`<div class="q-notes-box">${qNotes.replace(/\n/g,'<br>')}</div>`:'';
   const bizInfo=[abn?`ABN: ${abn}`:'',addr,phone,email].filter(Boolean).join(' &nbsp;·&nbsp; ');
   const logoHtml=appSettings.logoDataUrl?`<img src="${appSettings.logoDataUrl}" style="width:58px;height:58px;object-fit:fill;flex-shrink:0;display:block;border-radius:2px">`:'' ;
@@ -1487,18 +1493,7 @@ function printQuote(){
 }
 function exportPDF(){
   const w=window.open('','_blank');
-  const grand=quoteGrandTotal();
-  const ac=getAC();
-  const footerExtra=`<div style="margin-top:20px;padding:14px 26px;border-top:2px solid ${ac};display:flex;justify-content:space-between;align-items:flex-end">
-    <div style="font-size:10px;color:#888;font-family:'JetBrains Mono',monospace;max-width:60%;line-height:1.5">
-      This quote is a ballpark figure and is subject to change.<br>Final pricing may vary based on site conditions and material availability.
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:10px;color:#aaa;font-family:'JetBrains Mono',monospace;margin-bottom:3px">TOTAL (EXCL. GST)</div>
-      <div style="font-size:22px;font-weight:800;color:${ac};font-family:'JetBrains Mono',monospace">$${grand.toFixed(2)}</div>
-    </div>
-  </div>`;
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}${footerExtra}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
   w.document.close();
 }
 function quoteGrandTotal(){
