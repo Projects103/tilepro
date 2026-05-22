@@ -1070,11 +1070,17 @@ function drawWindowObj(o){
 function drawFixturePrev(){
   if(!pFixture)return;
   const ws=findWallSnap(mw);
-  const pos=ws?ws.pt:snapObj(mw);
-  const baseAng=ws?ws.wallAngle*180/Math.PI+90:0;
-  const sp=w2s(pos.x,pos.y);
+  const pos=ws?{...ws.pt}:snapObj(mw);
+  const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
+  const wallPerp=wallParallel+90;
+  const angByType={wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
+  const baseAng=angByType[pFixture.type]??wallPerp;
+  // Preview toilet offset
+  let drawPos={...pos};
+  if(pFixture.type==='toilet'&&ws){const ang=baseAng*Math.PI/180;const depth=(pFixture.depth||680)/2;drawPos={x:pos.x+Math.cos(ang)*depth,y:pos.y+Math.sin(ang)*depth};}
+  const sp=w2s(drawPos.x,drawPos.y);
   ctx.globalAlpha=.7;
-  const tmp={...pFixture,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,id:-1};
+  const tmp={...pFixture,x:drawPos.x,y:drawPos.y,angle:((baseAng%360)+360)%360,id:-1};
   if(tmp.type==='wall')drawWallObj(tmp);
   else if(tmp.type==='toilet')drawToilet(tmp);
   else if(tmp.type==='vanity')drawVanity(tmp);
@@ -1202,11 +1208,13 @@ function processTouchDown(sp){
   if(hid===null){
     const oid=hitOrigin(raw);
     if(oid!==null){dragOriginId=oid;dragPending=true;dragPendingSp=sp;return;}
+    // Deselect any selected object when tapping empty space
+    if(selId!==null){selId=null;updatePanel();closeSheet();render();}
     panning=true;panSt=sp;panO={...pan};
     return;
   }
   const o=objs.find(ob=>ob.id===hid);
-  if(o&&(o.type==='drain'||o.type==='screen')){
+  if(o&&o.type!=='floor'){
     selObj(hid);
     dragOff={x:raw.x-o.x,y:raw.y-o.y};
     touchHoldSp=sp;
@@ -1323,8 +1331,19 @@ function placeObject(sp){
   if(tool==='place-fixture'&&pFixture){
     saveUndo();
     const ws=findWallSnap(raw);
-    const baseAng=ws?ws.wallAngle*180/Math.PI+90:0;
-    const pos=ws?ws.pt:snapObj(raw);
+    // Wall-parallel angle (for door/window which sit IN a wall)
+    const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
+    // Wall-perpendicular angle (for wall/screen/toilet/vanity which stick OUT from wall)
+    const wallPerp=wallParallel+90;
+    const angByType={wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
+    const baseAng=angByType[pFixture.type]??wallPerp;
+    let pos=ws?{...ws.pt}:snapObj(raw);
+    // Toilet: offset so the back (tank) touches the wall, not the centre
+    if(pFixture.type==='toilet'&&ws){
+      const ang=baseAng*Math.PI/180;
+      const depth=(pFixture.depth||680)/2;
+      pos={x:pos.x+Math.cos(ang)*depth,y:pos.y+Math.sin(ang)*depth};
+    }
     const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
     const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
     const fx={...pFixture,id:nid++,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,name:`${typeLabel[pFixture.type]} ${typeCount}`};
@@ -1344,8 +1363,9 @@ function handleMove(sp,isTouch){
   if(dragging&&selId!==null){
     const o=objs.find(o=>o.id===selId);
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
-    if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
-    if(o?.type==='screen'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='drain'||o?.type==='toilet'||o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
+    if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='door'||o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
   if(!isTouch){
     const oh=hitOrigin(raw);cv.style.cursor=(tool==='select'&&oh)?'move':(tool==='select'&&hitTest(raw))?'pointer':'default';
@@ -1373,7 +1393,7 @@ function handleDown(sp,isTouch){
     const hid=hitTest(raw);
     if(isTouch&&hid===selId&&hid!==null){openSheet();return;}
     selObj(hid);
-    if(hid!==null){dragPending=true;dragPendingSp=sp;const o=objs.find(o=>o.id===hid);if(o&&(o.type==='drain'||o.type==='screen'))dragOff={x:raw.x-o.x,y:raw.y-o.y};if(isTouch)openSheet();}
+    if(hid!==null){dragPending=true;dragPendingSp=sp;const o=objs.find(o=>o.id===hid);if(o&&o.type!=='floor')dragOff={x:raw.x-o.x,y:raw.y-o.y};if(isTouch)openSheet();}
     else if(isTouch)closeSheet();
     render();
   }
@@ -1735,7 +1755,29 @@ function wallDropdown(fl){return function(sel){return fl.vertices.map((v,i)=>{co
 function initDrainOffsets(d){const fl=getFloorForObj(d);if(!fl)return;const v=fl.vertices,n=v.length,ws=v.map((a,i)=>{const b=v[(i+1)%n];const{pt}=closestOnSeg({x:d.x,y:d.y},a,b);return{idx:i,dd:dist({x:d.x,y:d.y},pt)};}).sort((a,b)=>a.dd-b.dd);d.wallA=ws[0].idx;d.wallB=ws.length>1?ws[1].idx:(ws[0].idx+1)%n;d.offsetA=Math.max(5,Math.round(ws[0].dd/5)*5);d.offsetB=Math.max(5,ws.length>1?Math.round(ws[1].dd/5)*5:100);}
 function wallNorm(fl,wi){const v=fl.vertices,n=v.length,cx2=v.reduce((s,p)=>s+p.x,0)/n,cy2=v.reduce((s,p)=>s+p.y,0)/n;const a=v[wi],b=v[(wi+1)%n],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);let nx=-dy/len,ny=dx/len;if((cx2-a.x)*nx+(cy2-a.y)*ny<0){nx=-nx;ny=-ny;}return{a,nx,ny};}
 function applyDrainOffset(did){const d=objs.find(o=>o.id===did);if(!d)return;const fl=getFloorForObj(d);if(!fl)return;const wi1=+document.getElementById(`dwa-${did}`)?.value,d1=+document.getElementById(`doa-${did}`)?.value||100;const wi2=+document.getElementById(`dwb-${did}`)?.value,d2=+document.getElementById(`dob-${did}`)?.value||100;const w1=wallNorm(fl,wi1),w2=wallNorm(fl,wi2);const c1=d1+w1.nx*w1.a.x+w1.ny*w1.a.y,c2=d2+w2.nx*w2.a.x+w2.ny*w2.a.y;const det=w1.nx*w2.ny-w1.ny*w2.nx;if(Math.abs(det)<1e-10){alert('Parallel walls');return;}saveUndo();d.x=(c1*w2.ny-c2*w1.ny)/det;d.y=(w1.nx*c2-w2.nx*c1)/det;d.wallA=wi1;d.wallB=wi2;d.offsetA=d1;d.offsetB=d2;updatePanel();render();}
-function applyScreenOffset(sid){const sc=objs.find(o=>o.id===sid);if(!sc)return;const fl=getFloorForObj(sc);if(!fl)return;const wi=+document.getElementById(`srw-${sid}`)?.value,d=+document.getElementById(`sro-${sid}`)?.value||100;const wn=wallNorm(fl,wi),v=fl.vertices,a=v[wi],b=v[(wi+1)%fl.vertices.length];const mid={x:(a.x+b.x)/2+wn.nx*d,y:(a.y+b.y)/2+wn.ny*d};const wAng=Math.atan2(b.y-a.y,b.x-a.x);saveUndo();sc.x=mid.x;sc.y=mid.y;sc.angle=((wAng*180/Math.PI)%360+360)%360;sc.refWall=wi;sc.refOffset=d;updatePanel();render();}
+function applyScreenOffset(sid){
+  const sc=objs.find(o=>o.id===sid);if(!sc)return;
+  const fl=getFloorForObj(sc);if(!fl)return;
+  const wi=+document.getElementById(`srw-${sid}`)?.value;
+  const d=+document.getElementById(`sro-${sid}`)?.value||100;
+  const v=fl.vertices,n=fl.vertices.length,a=v[wi],b=v[(wi+1)%n];
+  const wAng=Math.atan2(b.y-a.y,b.x-a.x);
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  // Place object along the wall from start vertex by d mm
+  const t=Math.min(Math.max(d,0),wLen)/wLen;
+  const pos={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  const wallParallel=wAng*180/Math.PI;
+  const wallPerp=wallParallel+90;
+  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
+  const ang=angByType[sc.type]??wallPerp;
+  saveUndo();
+  sc.x=pos.x;sc.y=pos.y;
+  sc.angle=((ang%360)+360)%360;
+  sc.refWall=wi;sc.refOffset=d;
+  // Toilet: push inward so back of toilet touches wall
+  if(sc.type==='toilet'){const rad=sc.angle*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(rad)*dep;sc.y+=Math.sin(rad)*dep;}
+  updatePanel();render();
+}
 
 // ═══════════════════════════════════════════════
 // MODALS
@@ -1997,6 +2039,17 @@ window.addEventListener('resize',()=>scaleQuoteDoc(false));
       if(e.touches.length<2)active=false;
     },{passive:true});
     pvw.addEventListener('touchcancel',()=>{active=false;},{passive:true});
+
+    // PC: Ctrl+scroll to zoom quote (plain scroll still scrolls the container)
+    pvw.addEventListener('wheel',e=>{
+      if(e.ctrlKey||e.metaKey){
+        e.preventDefault();
+        const f=e.deltaY<0?1.12:1/1.12;
+        quoteUserZoom=Math.max(0.3,Math.min(6,quoteUserZoom*f));
+        applyQuoteTransform();
+        updateQuoteResetBtn();
+      }
+    },{passive:false});
   });
 })();
 
