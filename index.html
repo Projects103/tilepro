@@ -176,26 +176,21 @@ select.inp{cursor:pointer}
 .bom-area{flex:1;display:none;overflow:hidden;min-height:0}
 .bom-area.show{display:flex}
 .bom-settings{width:295px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
-.bom-preview-wrap{flex:1;overflow:auto;background:#d8d4ce;display:flex;flex-direction:column;align-items:center;padding:20px 10px;position:relative}
+.bom-preview-wrap{flex:1;overflow:auto;background:#d8d4ce;display:flex;flex-direction:column;align-items:center;padding:20px 10px}
+#quote-preview-outer{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden;min-height:0}
 #quote-reset-btn{
-  position:sticky;bottom:16px;left:50%;transform:translateX(-50%) translateY(60px);
+  position:absolute;bottom:16px;left:50%;transform:translateX(-50%) translateY(60px);
   display:flex;align-items:center;gap:5px;
   padding:7px 16px;border-radius:20px;
   background:var(--sf);border:1px solid var(--bd2);
   color:var(--tx2);font-family:'Barlow Condensed',sans-serif;
   font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  cursor:pointer;
-  box-shadow:0 2px 14px rgba(0,0,0,.4);
-  white-space:nowrap;flex-shrink:0;z-index:5;
-  margin-top:10px;
-  /* Hidden by default — slides in when .visible */
+  cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.4);
+  white-space:nowrap;z-index:10;
   opacity:0;pointer-events:none;
   transition:opacity .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
 }
-#quote-reset-btn.visible{
-  opacity:1;pointer-events:all;
-  transform:translateX(-50%) translateY(0);
-}
+#quote-reset-btn.visible{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0)}
 #quote-reset-btn:hover,#quote-reset-btn:active{border-color:var(--ac);color:var(--ac)}
 #quote-scale-host{margin:0 auto;flex-shrink:0;position:relative}
 #quote-scale-wrap{transform-origin:top left;display:block}
@@ -280,8 +275,8 @@ select.inp{cursor:pointer}
   .bom-preview-wrap.mob-hide{display:none}
   .bom-mob-tabs{display:flex}
   .bom-area{flex-direction:column}
-  /* Mobile quote preview: JS scales the doc to fit screen width; overflow:auto enables scroll when zoomed */
-  .bom-preview-wrap{padding:8px;overflow:auto;-webkit-overflow-scrolling:touch;background:#d8d4ce;align-items:flex-start}
+  #quote-preview-outer{flex:1;min-height:0}
+  .bom-preview-wrap{padding:8px;overflow:auto;-webkit-overflow-scrolling:touch;background:#d8d4ce;align-items:flex-start;height:100%}
   .constraint-bar{display:none!important}
 }
 @media(min-width:701px){
@@ -307,6 +302,11 @@ select.inp{cursor:pointer}
   <div class="tsep"></div>
   <button class="tbtn" onclick="openDrainModal()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="4" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="4" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="20" y2="12"/></svg>Drain</button>
   <button class="tbtn" onclick="openScreenModal()"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="3" height="16"/><line x1="6" y1="12" x2="21" y2="12"/><polyline points="18 9 21 12 18 15"/></svg>Screen</button>
+  <button class="tbtn" onclick="openWallModal()"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/></svg>Wall</button>
+  <button class="tbtn" onclick="openFixtureModal('toilet')"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="14" rx="6" ry="7"/><rect x="8" y="4" width="8" height="5" rx="1"/></svg>Toilet</button>
+  <button class="tbtn" onclick="openFixtureModal('vanity')"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="1"/><line x1="3" y1="7" x2="21" y2="7"/><circle cx="12" cy="13" r="3"/></svg>Vanity</button>
+  <button class="tbtn" onclick="openFixtureModal('door')"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="10" height="18" rx="1"/><path d="M14 12 A8 8 0 0 1 6 20" stroke-dasharray="2 2"/></svg>Door</button>
+  <button class="tbtn" onclick="openFixtureModal('window')"><svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="6" rx="1"/><line x1="12" y1="9" x2="12" y2="15"/></svg>Window</button>
   <div class="tsep"></div>
   <button class="tbtn mob-hide" id="t-pan" onclick="setTool('pan')"><svg viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/></svg>Pan</button>
   <button class="tbtn grn" onclick="undo()"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.7"/></svg>Undo</button>
@@ -389,15 +389,16 @@ select.inp{cursor:pointer}
         <div class="row"><label class="lbl">Screen Install (hrs ea.)</label><input class="inp" id="lab-screen-hrs" type="number" value="0" min="0" step="0.25" oninput="refreshQuote()"></div>
       </div>
     </div>
-    <div class="bom-preview-wrap" id="bom-preview-wrap">
-      <!-- quote-scale-host is the clipping/overflow container sized to the scaled doc -->
-      <div id="quote-scale-host">
-        <!-- quote-scale-wrap applies CSS transform scale -->
-        <div id="quote-scale-wrap">
-          <div id="quote-preview"></div>
+    <!-- outer wrapper for quote preview + overlay reset button -->
+    <div id="quote-preview-outer">
+      <div class="bom-preview-wrap" id="bom-preview-wrap">
+        <div id="quote-scale-host">
+          <div id="quote-scale-wrap">
+            <div id="quote-preview"></div>
+          </div>
         </div>
       </div>
-      <!-- Reset View pinned to bottom-centre of the preview area -->
+      <!-- Reset View overlaid at bottom-centre, outside the scroll container -->
       <button id="quote-reset-btn" onclick="scaleQuoteDoc(true)" title="Reset zoom to fit">
         <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         Reset View
@@ -454,6 +455,25 @@ select.inp{cursor:pointer}
   <div class="mfld"><label class="mlbl">Cost ($)</label><input class="minp" id="sc-cost" type="number" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>
   <p class="mhint">Click/tap near a wall to snap and align perpendicular to it.</p>
   <div class="mact"><button class="btn btn-ol" onclick="closeSM()">Cancel</button><button class="btn btn-ac" onclick="confirmSM()">Place →</button></div>
+</div></div>
+
+<!-- WALL MODAL -->
+<div class="movl" id="wall-modal"><div class="modal">
+  <h2>▬ Add Wall</h2>
+  <div class="mrow">
+    <div class="mfld"><label class="mlbl">Length (mm)</label><input class="minp" id="wall-len" type="number" value="1000" min="50" inputmode="numeric"></div>
+    <div class="mfld"><label class="mlbl">Thickness (mm)</label><input class="minp" id="wall-thick" type="number" value="100" min="20" inputmode="numeric"></div>
+  </div>
+  <p class="mhint">Click near a floor wall to snap and align. Drag to reposition. Set wall offset in Properties for precision.</p>
+  <div class="mact"><button class="btn btn-ol" onclick="closeFixModal('wall-modal')">Cancel</button><button class="btn btn-ac" onclick="confirmWallModal()">Place →</button></div>
+</div></div>
+
+<!-- FIXTURE MODAL -->
+<div class="movl" id="fixture-modal"><div class="modal">
+  <h2 id="fix-title">Add Fixture</h2>
+  <div id="fix-fields"></div>
+  <p class="mhint" id="fix-hint"></p>
+  <div class="mact"><button class="btn btn-ol" onclick="closeFixModal('fixture-modal')">Cancel</button><button class="btn btn-ac" onclick="confirmFixtureModal()">Place →</button></div>
 </div></div>
 
 <!-- CONSTRAINT INPUT MODAL -->
@@ -658,7 +678,7 @@ let cH=false,cV=false;
 let edgeConstraints=[];
 let pendingConstraint=null,angleEdge1=null,conSecondEdge=null,conInputMode=null;
 let editingFloorId=null,editSelVert=null,editSelEdge=null,editDragVert=null;
-let pDrain=null,pScreen=null,settingOrigin=null;
+let pDrain=null,pScreen=null,pFixture=null,settingOrigin=null;
 let panning=false,panSt={x:0,y:0},panO={x:0,y:0};
 let dragging=false,dragOff={x:0,y:0},dragOriginId=null;
 let dragPending=false,dragPendingSp=null;
@@ -823,10 +843,19 @@ function _render(){
   ctx.clearRect(0,0,W,H);ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
   drawGrid();
   for(const o of objs)if(o.type==='floor'&&!o._editing)drawFloor(o);
-  for(const o of objs){if(o.type==='drain')drawDrain(o);if(o.type==='screen')drawScreen(o);}
+  for(const o of objs){
+    if(o.type==='drain')drawDrain(o);
+    if(o.type==='screen')drawScreen(o);
+    if(o.type==='wall')drawWallObj(o);
+    if(o.type==='toilet')drawToilet(o);
+    if(o.type==='vanity')drawVanity(o);
+    if(o.type==='door')drawDoorObj(o);
+    if(o.type==='window')drawWindowObj(o);
+  }
   if(drawPhase!=='idle')drawInProgress();
   if(tool==='place-drain'&&pDrain)drawDrainPrev();
   if(tool==='place-screen'&&pScreen)drawScreenPrev();
+  if(tool==='place-fixture'&&pFixture)drawFixturePrev();
   if(settingOrigin!=null)drawOriginPrev();
   if((cH||cV||keys.has('Shift'))&&drawPhase==='drawing'&&dv.length>0)drawConLine();
   if(pendingConstraint&&drawPhase==='closed')drawPendingHint();
@@ -922,6 +951,138 @@ function drawDrainPrev(){const snp=snapObj(mw);const sp=w2s(snp.x,snp.y);const s
 function drawScreenPrev(){const ws=findWallSnap(mw);const pos=ws?ws.pt:mw;const baseAng=ws?ws.wallAngle+Math.PI/2:0;const sp=w2s(pos.x,pos.y);const len=pScreen.len*zoom,thick=Math.max(2,pScreen.thick*zoom);ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(baseAng);ctx.globalAlpha=.7;ctx.fillStyle=getCSSVar('bl')+'20';ctx.strokeStyle=getCSSVar('bl');ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.fillRect(0,-thick/2,len,thick);ctx.strokeRect(0,-thick/2,len,thick);ctx.setLineDash([]);ctx.restore();if(ws)drawSnapC(sp);}
 function drawOriginPrev(){const pt=snapOriginPt(mw,settingOrigin);const sp=w2s(pt.x,pt.y),r=10,bl=getCSSVar('bl');ctx.strokeStyle=bl+'66';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(sp.x-r,sp.y);ctx.lineTo(sp.x+r,sp.y);ctx.stroke();ctx.beginPath();ctx.moveTo(sp.x,sp.y-r);ctx.lineTo(sp.x,sp.y+r);ctx.stroke();ctx.setLineDash([]);ctx.beginPath();ctx.arc(sp.x,sp.y,4,0,Math.PI*2);ctx.fillStyle=bl;ctx.fill();drawSnapC(sp);}
 function drawSnapC(sp){ctx.strokeStyle=getCSSVar('bl')+'88';ctx.lineWidth=2;ctx.setLineDash([]);ctx.beginPath();ctx.arc(sp.x,sp.y,8,0,Math.PI*2);ctx.stroke();}
+
+// ─ FIXTURE DRAW FUNCTIONS ─────────────────────
+function drawWallObj(o){
+  const sp=w2s(o.x,o.y);const len=o.len*zoom,thick=Math.max(2,o.thick*zoom),ang=o.angle*Math.PI/180,sel=selId===o.id,ac=getAC();
+  ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
+  if(sel){ctx.shadowColor=ac+'40';ctx.shadowBlur=8;}
+  ctx.fillStyle=sel?getCSSVar('sf3'):getCSSVar('bd2');
+  ctx.strokeStyle=sel?ac:getCSSVar('bd3');
+  ctx.lineWidth=sel?2:1.5;
+  ctx.fillRect(0,-thick/2,len,thick);
+  ctx.strokeRect(0,-thick/2,len,thick);
+  // Hatch pattern to distinguish from floor
+  ctx.strokeStyle=(sel?ac:getCSSVar('tx3'))+'40';ctx.lineWidth=.7;
+  const step=Math.max(6,thick/3);
+  for(let x=0;x<len;x+=step){ctx.beginPath();ctx.moveTo(x,-thick/2);ctx.lineTo(x+thick/2,thick/2);ctx.stroke();}
+  ctx.shadowBlur=0;ctx.restore();
+  if(len>22){const ep=w2s(o.x+o.len*Math.cos(ang),o.y+o.len*Math.sin(ang));dimLabel(sp,ep,o.len);}
+}
+
+function drawToilet(o){
+  const sp=w2s(o.x,o.y),ang=o.angle*Math.PI/180,sel=selId===o.id,ac=getAC();
+  const w=o.width*zoom,d=o.depth*zoom;
+  ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
+  if(sel){ctx.shadowColor=ac+'40';ctx.shadowBlur=8;}
+  const fill=sel?getCSSVar('sf3'):'#e8e8e8',stroke=sel?ac:'#888';
+  // Tank
+  ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
+  const tkW=w*.9,tkD=d*.28;
+  ctx.fillRect(-tkW/2,-d/2,tkW,tkD);ctx.strokeRect(-tkW/2,-d/2,tkW,tkD);
+  // Bowl outer ellipse
+  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w/2,d*.37,0,0,Math.PI*2);
+  ctx.fillStyle=fill;ctx.fill();ctx.stroke();
+  // Bowl seat
+  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w*.43,d*.3,0,0,Math.PI*2);
+  ctx.strokeStyle=stroke+'80';ctx.lineWidth=1;ctx.stroke();
+  // Bowl water
+  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w*.32,d*.22,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(100,160,200,.25)';ctx.fill();
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function drawVanity(o){
+  const sp=w2s(o.x,o.y),ang=o.angle*Math.PI/180,sel=selId===o.id,ac=getAC();
+  const w=o.width*zoom,d=o.depth*zoom;
+  ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
+  if(sel){ctx.shadowColor=ac+'40';ctx.shadowBlur=8;}
+  const fill=sel?getCSSVar('sf3'):'#d8d4c8',stroke=sel?ac:'#888';
+  if(o.shape==='corner-l'||o.shape==='corner-r'){
+    const w2=o.width2*zoom,d2=o.depth2*zoom;
+    const sign=o.shape==='corner-l'?1:-1;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(w,0);ctx.lineTo(w,d);ctx.lineTo(sign>0?w2:w-w2+w,d);ctx.lineTo(sign>0?w2:w-w2+w,d+d2);ctx.lineTo(sign>0?0:w-w,d+d2);ctx.lineTo(sign>0?0:w-w,0);ctx.closePath();
+    // simpler L: main rect + side rect
+    ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
+    // Main rect
+    ctx.fillRect(0,-d,w,d);ctx.strokeRect(0,-d,w,d);
+    // Side wing
+    if(o.shape==='corner-l')ctx.fillRect(0,-d-d2,w2,d2),ctx.strokeRect(0,-d-d2,w2,d2);
+    else ctx.fillRect(w-w2,-d-d2,w2,d2),ctx.strokeRect(w-w2,-d-d2,w2,d2);
+  }else{
+    ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
+    ctx.fillRect(0,-d,w,d);ctx.strokeRect(0,-d,w,d);
+  }
+  // Sink bowl(s)
+  ctx.fillStyle='rgba(100,160,200,.25)';ctx.strokeStyle=stroke+'80';ctx.lineWidth=1;
+  const sinkR=Math.min(w,d)*.22;
+  if(o.shape==='double-sink'){
+    ctx.beginPath();ctx.ellipse(w*.25,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(w*.75,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  }else{
+    ctx.beginPath();ctx.ellipse(w/2,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  }
+  ctx.shadowBlur=0;ctx.restore();
+}
+
+function drawDoorObj(o){
+  const sp=w2s(o.x,o.y),ang=o.angle*Math.PI/180,sel=selId===o.id,ac=getAC();
+  const w=o.width*zoom;
+  const swingDir=o.swing==='left'?1:-1;
+  ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
+  // Wall gap (white cutout)
+  ctx.fillStyle=getCSSVar('bg');ctx.fillRect(0,-2,w,4);
+  // Door leaf
+  const leafAng=swingDir*(o.openAngle||90)*Math.PI/180;
+  ctx.strokeStyle=sel?ac:'#888';ctx.lineWidth=sel?2:1.5;
+  // Door leaf line
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(w*Math.cos(leafAng),w*Math.sin(leafAng));ctx.stroke();
+  // Swing arc
+  ctx.beginPath();ctx.arc(0,0,w,0,swingDir>0?leafAng:-leafAng,swingDir<0);
+  ctx.strokeStyle=(sel?ac:'#888')+'70';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);
+  // Door frame lines
+  ctx.strokeStyle=sel?ac:'#555';ctx.lineWidth=sel?2:1.5;
+  ctx.beginPath();ctx.moveTo(0,-3);ctx.lineTo(0,3);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w,-3);ctx.lineTo(w,3);ctx.stroke();
+  ctx.restore();
+  if(w>22){const ep=w2s(o.x+o.width*Math.cos(ang),o.y+o.width*Math.sin(ang));dimLabel(sp,ep,o.width);}
+}
+
+function drawWindowObj(o){
+  const sp=w2s(o.x,o.y),ang=o.angle*Math.PI/180,sel=selId===o.id,ac=getAC();
+  const w=o.width*zoom,thick=8;
+  ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
+  // Wall gap fill
+  ctx.fillStyle=sel?getCSSVar('sf3'):'#e8f4f8';
+  ctx.fillRect(0,-thick/2,w,thick);
+  // Outer frame
+  ctx.strokeStyle=sel?ac:'#6090a0';ctx.lineWidth=sel?2:1.5;
+  ctx.strokeRect(0,-thick/2,w,thick);
+  // Centre line
+  ctx.beginPath();ctx.moveTo(w/2,-thick/2);ctx.lineTo(w/2,thick/2);ctx.stroke();
+  // Sill lines
+  ctx.strokeStyle=(sel?ac:'#6090a0')+'60';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,-thick);ctx.lineTo(w,-thick);ctx.moveTo(0,thick);ctx.lineTo(w,thick);ctx.stroke();
+  ctx.restore();
+  if(w>22){const ep=w2s(o.x+o.width*Math.cos(ang),o.y+o.width*Math.sin(ang));dimLabel(sp,ep,o.width);}
+}
+
+function drawFixturePrev(){
+  if(!pFixture)return;
+  const ws=findWallSnap(mw);
+  const pos=ws?ws.pt:snapObj(mw);
+  const baseAng=ws?ws.wallAngle*180/Math.PI+90:0;
+  const sp=w2s(pos.x,pos.y);
+  ctx.globalAlpha=.7;
+  const tmp={...pFixture,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,id:-1};
+  if(tmp.type==='wall')drawWallObj(tmp);
+  else if(tmp.type==='toilet')drawToilet(tmp);
+  else if(tmp.type==='vanity')drawVanity(tmp);
+  else if(tmp.type==='door')drawDoorObj(tmp);
+  else if(tmp.type==='window')drawWindowObj(tmp);
+  ctx.globalAlpha=1;
+  if(ws)drawSnapC(sp);
+}
 function dimLabel(sa,sb,lenMm){const dx=sb.x-sa.x,dy=sb.y-sa.y,pxL=Math.hypot(dx,dy);if(pxL<24)return;const mx=(sa.x+sb.x)/2,my=(sa.y+sb.y)/2,nx=-dy/pxL,ny=dx/pxL,off=12,lx=mx+nx*off,ly=my+ny*off,lbl=lenMm>=1000?(lenMm/1000).toFixed(2)+'m':Math.round(lenMm)+'mm';ctx.save();ctx.translate(lx,ly);let a=Math.atan2(dy,dx);if(Math.abs(a)>Math.PI/2)a+=Math.PI;ctx.rotate(a);ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='center';ctx.textBaseline='middle';const tw=ctx.measureText(lbl).width;ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(-tw/2-3,-6,tw+6,12);ctx.fillStyle=getCSSVar('bl');ctx.fillText(lbl,0,0);ctx.restore();}
 
 // ═══════════════════════════════════════════════
@@ -957,7 +1118,34 @@ function updateConUI(){
 // ═══════════════════════════════════════════════
 // HIT TESTS
 // ═══════════════════════════════════════════════
-function hitTest(w){const R=12/zoom;for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='screen'){const ang=o.angle*Math.PI/180;const ep={x:o.x+o.len*Math.cos(ang),y:o.y+o.len*Math.sin(ang)};const{pt}=closestOnSeg(w,{x:o.x,y:o.y},ep);if(dist(w,pt)<R+o.thick/2)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='drain'){const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang),rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;if(Math.abs(rx)<o.cw/2+R&&Math.abs(ry)<o.ch/2+R)return o.id;}}for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='floor'&&!o._editing&&o.vertices.length>=3&&inPoly(w,o.vertices))return o.id;}return null;}
+function hitTest(w){
+  const R=12/zoom;
+  // Line-based objects
+  for(let i=objs.length-1;i>=0;i--){
+    const o=objs[i];
+    if(o.type==='screen'||o.type==='wall'||o.type==='door'||o.type==='window'){
+      const ang=o.angle*Math.PI/180,len=o.len||o.width||0;
+      const ep={x:o.x+len*Math.cos(ang),y:o.y+len*Math.sin(ang)};
+      const{pt}=closestOnSeg(w,{x:o.x,y:o.y},ep);
+      const thick=o.type==='wall'?(o.thick/2+R):(o.thick!=null?o.thick/2+R:R);
+      if(dist(w,pt)<thick)return o.id;
+    }
+  }
+  // Box-based objects (drain, toilet, vanity)
+  for(let i=objs.length-1;i>=0;i--){
+    const o=objs[i];
+    if(o.type==='drain'||o.type==='toilet'||o.type==='vanity'){
+      const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang);
+      const w2=o.type==='drain'?o.cw/2:(o.width||400)/2;
+      const h2=o.type==='drain'?o.ch/2:(o.depth||600)/2;
+      const rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;
+      if(Math.abs(rx)<w2+R&&Math.abs(ry)<h2+R)return o.id;
+    }
+  }
+  // Floors
+  for(let i=objs.length-1;i>=0;i--){const o=objs[i];if(o.type==='floor'&&!o._editing&&o.vertices.length>=3&&inPoly(w,o.vertices))return o.id;}
+  return null;
+}
 function hitOrigin(w){const R=(isMob()?22:14)/zoom;for(const o of objs){if(o.type==='floor'&&!o._editing&&o.tiled&&o.tileOrigin&&dist(w,o.tileOrigin)<R)return o.id;}return null;}
 function hitDrawVertex(w){const R=(isMob()?22:14)/zoom;for(let i=0;i<dv.length;i++)if(dist(w,dv[i])<R)return i;return null;}
 function hitDrawEdge(w){const R=(isMob()?18:11)/zoom,n=dv.length;if(n<2)return null;const limit=drawPhase==='closed'?n:n-1;for(let i=0;i<limit;i++){const a=dv[i],b=dv[(i+1)%n];const{pt}=closestOnSeg(w,a,b);if(dist(w,pt)<R&&dist(w,a)>R*.5&&dist(w,b)>R*.5)return i;}return null;}
@@ -970,7 +1158,7 @@ function evPt(e){const r=cv.getBoundingClientRect();const s=e.changedTouches?.le
 // ─ MOUSE ──────────────────────────────────────
 cv.addEventListener('mousedown',e=>{if(e.button===1||(e.button===0&&tool==='pan')){panning=true;panSt=evPt(e);panO={...pan};return;}if(e.button===0)handleDown(evPt(e),false);});
 // Dedicated click for placement (more reliable than mousedown)
-cv.addEventListener('click',e=>{if(e.button!==0)return;if(tool==='place-drain'&&pDrain){placeObject(evPt(e));}else if(tool==='place-screen'&&pScreen){placeObject(evPt(e));}});
+cv.addEventListener('click',e=>{if(e.button!==0)return;if(tool==='place-drain'&&pDrain){placeObject(evPt(e));}else if(tool==='place-screen'&&pScreen){placeObject(evPt(e));}else if(tool==='place-fixture'&&pFixture){placeObject(evPt(e));}});
 document.addEventListener('mousemove',e=>{if(dragging||panning||e.target===cv||editDragVert!==null)handleMove(evPt(e),false);});
 document.addEventListener('mouseup',e=>{if(e.button===1||panning)panning=false;if(e.button===0)handleUp(false);});
 cv.addEventListener('dblclick',e=>handleDbl(evPt(e)));
@@ -1099,7 +1287,7 @@ cv.addEventListener('touchend',e=>{
   // If the tap timer is still pending (very quick lift), commit the down then handle up
   if(pendingTap){cancelPendingTap();processTouchDown(lastTouchPos);}
   // PLACEMENT MODE
-  if(tool==='place-drain'||tool==='place-screen'){mw=s2w(lastTouchPos.x,lastTouchPos.y);placeObject(lastTouchPos);return;}
+  if(tool==='place-drain'||tool==='place-screen'||tool==='place-fixture'){mw=s2w(lastTouchPos.x,lastTouchPos.y);placeObject(lastTouchPos);return;}
   // DRAW MODE — drawing: place vertex on release
   if(tool==='draw'&&drawPhase!=='closed'){
     const sp=evPt(e);const now=Date.now();
@@ -1132,6 +1320,19 @@ function placeObject(sp){
   const raw=s2w(sp.x,sp.y);
   if(tool==='place-drain'&&pDrain){saveUndo();const snp=snapObj(raw);const dr={...pDrain,id:nid++,type:'drain',x:snp.x,y:snp.y,name:'Drain '+(objs.filter(o=>o.type==='drain').length+1)};objs.push(dr);initDrainOffsets(dr);pDrain=null;tool='select';document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));document.getElementById('t-select').classList.add('on');cv.style.cursor='default';selObjOpen(dr.id);return;}
   if(tool==='place-screen'&&pScreen){saveUndo();const ws=findWallSnap(raw);const baseAng=ws?ws.wallAngle*180/Math.PI+90:0;const pos=ws?ws.pt:snapObj(raw);const sc={...pScreen,id:nid++,type:'screen',x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,name:'Screen '+(objs.filter(o=>o.type==='screen').length+1)};objs.push(sc);pScreen=null;tool='select';document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));document.getElementById('t-select').classList.add('on');cv.style.cursor='default';selObjOpen(sc.id);return;}
+  if(tool==='place-fixture'&&pFixture){
+    saveUndo();
+    const ws=findWallSnap(raw);
+    const baseAng=ws?ws.wallAngle*180/Math.PI+90:0;
+    const pos=ws?ws.pt:snapObj(raw);
+    const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
+    const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
+    const fx={...pFixture,id:nid++,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,name:`${typeLabel[pFixture.type]} ${typeCount}`};
+    objs.push(fx);pFixture=null;tool='select';
+    document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));
+    document.getElementById('t-select').classList.add('on');
+    cv.style.cursor='default';selObjOpen(fx.id);return;
+  }
 }
 
 function handleMove(sp,isTouch){
@@ -1295,19 +1496,22 @@ function closeSheet(){document.getElementById('bsheet').classList.remove('open')
     const modal=document.querySelector('#settings-movl .settings-modal');
     if(!knob||!modal)return;
     let y0=0,active=false;
-    knob.addEventListener('touchstart',e=>{y0=e.touches[0].clientY;active=true;},{passive:true});
-    // Attach touchmove/end to the modal so swipe works even if finger moves off knob
-    modal.addEventListener('touchmove',e=>{
+    knob.addEventListener('touchstart',e=>{
+      y0=e.touches[0].clientY;active=true;
+    },{passive:true});
+    // Non-passive so we can call preventDefault to stop modal from scrolling during swipe
+    knob.addEventListener('touchmove',e=>{
       if(!active)return;
+      e.preventDefault();
       const dy=e.touches[0].clientY-y0;
       if(dy>0)modal.style.transform=`translateY(${Math.min(dy,200)}px)`;
-    },{passive:true});
-    modal.addEventListener('touchend',e=>{
+    },{passive:false});
+    knob.addEventListener('touchend',e=>{
       if(!active)return;
       active=false;modal.style.transform='';
-      if(e.changedTouches[0].clientY-y0>80)closeSettings();
+      if(e.changedTouches[0].clientY-y0>60)closeSettings();
     },{passive:true});
-    modal.addEventListener('touchcancel',()=>{active=false;modal.style.transform='';},{passive:true});
+    knob.addEventListener('touchcancel',()=>{active=false;modal.style.transform='';},{passive:true});
   });
 })();
 
@@ -1436,6 +1640,82 @@ function panelHtml(){
     <div style="margin-top:6px"><button class="btn btn-red" onclick="deleteSelected()">Delete Screen</button></div></div>`;
     return{icon:'▐',cls:'sc',title:o.name||'Screen',sub:'shower screen',body};
   }
+  // ─ FIXTURE PANELS ─
+  if(o.type==='wall'){
+    const fl=getFloorForObj(o),wOpts=fl?wallDropdown(fl):null;
+    const body=`<div class="sec"><div class="sec-t">Wall</div>
+    <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
+    <div class="row"><label class="lbl">Length (mm)</label><input class="inp" type="number" value="${o.len}" min="50" inputmode="numeric" onchange="sp(${o.id},'len',+this.value)"></div>
+    <div class="row"><label class="lbl">Thickness (mm)</label><input class="inp" type="number" value="${o.thick}" min="20" inputmode="numeric" onchange="sp(${o.id},'thick',+this.value)"></div>
+    <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
+    </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
+    <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
+    <div class="row"><label class="lbl">Offset (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??100}" min="0" step="5" inputmode="numeric"></div>
+    <button class="btn btn-ac" onclick="applyScreenOffset(${o.id})">Apply Offset</button></div>`:''}
+    <div class="sec"><div style="margin-top:0"><button class="btn btn-red" onclick="deleteSelected()">Delete Wall</button></div></div>`;
+    return{icon:'▬',cls:'sc',title:o.name||'Wall',sub:'wall',body};
+  }
+  if(o.type==='toilet'){
+    const body=`<div class="sec"><div class="sec-t">Toilet</div>
+    <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
+    <div class="dual"><div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||380}" min="200" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
+    <div class="row"><label class="lbl">Depth (mm)</label><input class="inp" type="number" value="${o.depth||680}" min="400" inputmode="numeric" onchange="sp(${o.id},'depth',+this.value)"></div></div>
+    <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
+    <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
+    </div><div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Toilet</button></div>`;
+    return{icon:'◯',cls:'dr',title:o.name||'Toilet',sub:'toilet',body};
+  }
+  if(o.type==='vanity'){
+    const body=`<div class="sec"><div class="sec-t">Vanity</div>
+    <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
+    <div class="dual"><div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||900}" min="300" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
+    <div class="row"><label class="lbl">Depth (mm)</label><input class="inp" type="number" value="${o.depth||500}" min="200" inputmode="numeric" onchange="sp(${o.id},'depth',+this.value)"></div></div>
+    <div class="row"><label class="lbl">Shape</label>
+      <select class="inp" onchange="sp(${o.id},'shape',this.value)">
+        <option value="rect"${o.shape==='rect'?' selected':''}>Rectangle</option>
+        <option value="corner-l"${o.shape==='corner-l'?' selected':''}>Corner (left wing)</option>
+        <option value="corner-r"${o.shape==='corner-r'?' selected':''}>Corner (right wing)</option>
+        <option value="double-sink"${o.shape==='double-sink'?' selected':''}>Double Sink</option>
+      </select></div>
+    ${(o.shape==='corner-l'||o.shape==='corner-r')?`<div class="dual"><div class="row"><label class="lbl">Wing W (mm)</label><input class="inp" type="number" value="${o.width2||600}" min="200" inputmode="numeric" onchange="sp(${o.id},'width2',+this.value)"></div>
+    <div class="row"><label class="lbl">Wing D (mm)</label><input class="inp" type="number" value="${o.depth2||400}" min="200" inputmode="numeric" onchange="sp(${o.id},'depth2',+this.value)"></div></div>`:''}
+    <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
+    <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
+    </div><div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
+    return{icon:'□',cls:'fl',title:o.name||'Vanity',sub:'vanity',body};
+  }
+  if(o.type==='door'){
+    const fl=getFloorForObj(o),wOpts=fl?wallDropdown(fl):null;
+    const body=`<div class="sec"><div class="sec-t">Door</div>
+    <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
+    <div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||900}" min="500" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
+    <div class="row"><label class="lbl">Open Angle (°)</label><input class="inp" type="number" value="${o.openAngle||90}" min="10" max="180" inputmode="numeric" onchange="sp(${o.id},'openAngle',+this.value)"></div>
+    <div class="row"><label class="lbl">Swing Direction</label>
+      <select class="inp" onchange="sp(${o.id},'swing',this.value)">
+        <option value="left"${o.swing==='left'?' selected':''}>Left</option>
+        <option value="right"${o.swing==='right'?' selected':''}>Right</option>
+      </select></div>
+    <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
+    </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
+    <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
+    <div class="row"><label class="lbl">Offset (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??100}" min="0" step="5" inputmode="numeric"></div>
+    <button class="btn btn-ac" onclick="applyScreenOffset(${o.id})">Apply Offset</button></div>`:''}
+    <div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Door</button></div>`;
+    return{icon:'⊟',cls:'dr',title:o.name||'Door',sub:'door',body};
+  }
+  if(o.type==='window'){
+    const fl=getFloorForObj(o),wOpts=fl?wallDropdown(fl):null;
+    const body=`<div class="sec"><div class="sec-t">Window</div>
+    <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
+    <div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||900}" min="200" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
+    <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
+    </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
+    <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
+    <div class="row"><label class="lbl">Offset (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??100}" min="0" step="5" inputmode="numeric"></div>
+    <button class="btn btn-ac" onclick="applyScreenOffset(${o.id})">Apply Offset</button></div>`:''}
+    <div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Window</button></div>`;
+    return{icon:'⊞',cls:'fl',title:o.name||'Window',sub:'window',body};
+  }
   return null;
 }
 function updatePanel(){
@@ -1476,6 +1756,70 @@ function confirmSM(){
   pScreen={len:+document.getElementById('sl').value||900,thick:+document.getElementById('sth').value||10,cost:+document.getElementById('sc-cost').value||0};
   closeSM();
   tool='place-screen';
+  document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));
+  cv.style.cursor='crosshair';updateStatus();render();
+}
+
+// ─ FIXTURE MODALS ─────────────────────────────
+function closeFixModal(id){document.getElementById(id).classList.remove('show');}
+
+function openWallModal(){document.getElementById('wall-modal').classList.add('show');}
+function confirmWallModal(){
+  pFixture={type:'wall',len:+document.getElementById('wall-len').value||1000,thick:+document.getElementById('wall-thick').value||100,angle:0};
+  closeFixModal('wall-modal');tool='place-fixture';
+  document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));
+  cv.style.cursor='crosshair';updateStatus();render();
+}
+
+const FIXTURE_CONFIGS={
+  toilet:{title:'Add Toilet',hint:'Click near a wall to snap and align. Standard toilet dimensions.',fields:`
+    <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="380" min="200" inputmode="numeric"></div>
+    <div class="mfld"><label class="mlbl">Depth (mm)</label><input class="minp" id="fix-d" type="number" value="680" min="400" inputmode="numeric"></div></div>`},
+  vanity:{title:'Add Vanity',hint:'Choose shape and dimensions. Corner vanities add a second wing.',fields:`
+    <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="900" min="300" inputmode="numeric"></div>
+    <div class="mfld"><label class="mlbl">Depth (mm)</label><input class="minp" id="fix-d" type="number" value="500" min="200" inputmode="numeric"></div></div>
+    <div class="mfld"><label class="mlbl">Shape</label>
+      <select class="minp" id="fix-shape" onchange="toggleFixShape(this.value)">
+        <option value="rect">Rectangle</option>
+        <option value="corner-l">Corner (left wing)</option>
+        <option value="corner-r">Corner (right wing)</option>
+        <option value="double-sink">Double Sink</option>
+      </select>
+    </div>
+    <div id="fix-corner-fields" style="display:none">
+      <div class="mrow"><div class="mfld"><label class="mlbl">Wing Width (mm)</label><input class="minp" id="fix-w2" type="number" value="600" min="200" inputmode="numeric"></div>
+      <div class="mfld"><label class="mlbl">Wing Depth (mm)</label><input class="minp" id="fix-d2" type="number" value="400" min="200" inputmode="numeric"></div></div>
+    </div>`},
+  door:{title:'Add Door',hint:'Snap to a wall. Adjust swing direction in Properties.',fields:`
+    <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="900" min="500" inputmode="numeric"></div>
+    <div class="mfld"><label class="mlbl">Open Angle (°)</label><input class="minp" id="fix-ang" type="number" value="90" min="10" max="180" inputmode="numeric"></div></div>
+    <div class="mfld"><label class="mlbl">Swing Direction</label>
+      <select class="minp" id="fix-swing"><option value="left">Left</option><option value="right">Right</option></select></div>`},
+  window:{title:'Add Window',hint:'Snap to a wall. Shown as a wall opening with sill lines.',fields:`
+    <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="900" min="200" inputmode="numeric"></div>
+    <div class="mfld"><label class="mlbl">Sill Depth (mm)</label><input class="minp" id="fix-d" type="number" value="150" min="50" inputmode="numeric"></div></div>`}
+};
+
+let currentFixType=null;
+function openFixtureModal(type){
+  currentFixType=type;
+  const cfg=FIXTURE_CONFIGS[type];
+  document.getElementById('fix-title').textContent=cfg.title;
+  document.getElementById('fix-fields').innerHTML=cfg.fields;
+  document.getElementById('fix-hint').textContent=cfg.hint;
+  document.getElementById('fixture-modal').classList.add('show');
+}
+function toggleFixShape(v){const cf=document.getElementById('fix-corner-fields');if(cf)cf.style.display=(v==='corner-l'||v==='corner-r')?'block':'none';}
+function confirmFixtureModal(){
+  const type=currentFixType;
+  const w=+(document.getElementById('fix-w')?.value)||900;
+  const d=+(document.getElementById('fix-d')?.value)||500;
+  if(type==='toilet')pFixture={type,width:w,depth:d,angle:0};
+  else if(type==='vanity'){const shape=document.getElementById('fix-shape')?.value||'rect';const w2=+(document.getElementById('fix-w2')?.value)||600;const d2=+(document.getElementById('fix-d2')?.value)||400;pFixture={type,width:w,depth:d,shape,width2:w2,depth2:d2,angle:0};}
+  else if(type==='door'){const swing=document.getElementById('fix-swing')?.value||'left';const openAngle=+(document.getElementById('fix-ang')?.value)||90;pFixture={type,width:w,swing,openAngle,angle:0};}
+  else if(type==='window')pFixture={type,width:w,sillDepth:d,angle:0};
+  closeFixModal('fixture-modal');
+  tool='place-fixture';
   document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));
   cv.style.cursor='crosshair';updateStatus();render();
 }
@@ -1653,15 +1997,6 @@ window.addEventListener('resize',()=>scaleQuoteDoc(false));
       if(e.touches.length<2)active=false;
     },{passive:true});
     pvw.addEventListener('touchcancel',()=>{active=false;},{passive:true});
-
-    // Desktop: scroll wheel to zoom quote (no Ctrl needed)
-    pvw.addEventListener('wheel',e=>{
-      e.preventDefault();
-      const f=e.deltaY<0?1.12:1/1.12;
-      quoteUserZoom=Math.max(0.3,Math.min(6,quoteUserZoom*f));
-      applyQuoteTransform();
-      updateQuoteResetBtn();
-    },{passive:false});
   });
 })();
 
