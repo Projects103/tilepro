@@ -177,6 +177,7 @@ select.inp{cursor:pointer}
 .bom-area.show{display:flex}
 .bom-settings{width:295px;flex-shrink:0;background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column}
 .bom-preview-wrap{flex:1;overflow:auto;background:#d8d4ce;display:flex;flex-direction:column;align-items:center;padding:20px 10px}
+#quote-scroll-outer{width:100%;} /* desktop: transparent wrapper */
 .bom-act-row{padding:8px 10px;border-bottom:1px solid var(--bd);display:flex;gap:6px;flex-shrink:0}
 .bom-act-row .btn{flex:1}
 .bom-mob-tabs{display:none;padding:7px 8px;background:var(--sf);border-bottom:1px solid var(--bd);gap:6px;flex-shrink:0}
@@ -258,7 +259,16 @@ select.inp{cursor:pointer}
   .bom-preview-wrap.mob-hide{display:none}
   .bom-mob-tabs{display:flex}
   .bom-area{flex-direction:column}
-  .quote-doc{width:100%;min-width:320px;min-height:auto}
+  /* Mobile quote preview: full-width scroll box, quote stays A4 wide */
+  .bom-preview-wrap{padding:0;overflow:hidden;background:#d8d4ce;position:relative}
+  #quote-scroll-outer{
+    overflow:auto;-webkit-overflow-scrolling:touch;
+    width:100%;height:100%;
+    padding:12px;
+    /* allow native pinch-zoom within this container */
+    touch-action:pan-x pan-y pinch-zoom;
+  }
+  .quote-doc{width:210mm;min-width:210mm;min-height:auto;}
   .constraint-bar{display:none!important}
 }
 @media(min-width:701px){
@@ -367,7 +377,9 @@ select.inp{cursor:pointer}
       </div>
     </div>
     <div class="bom-preview-wrap" id="bom-preview-wrap">
-      <div id="quote-preview"></div>
+      <div id="quote-scroll-outer">
+        <div id="quote-preview"></div>
+      </div>
     </div>
   </div>
 
@@ -941,9 +953,23 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ─ TOUCH ──────────────────────────────────────
 let pinchD0=0,pinchZ0=0;
+let isPinching=false; // true as soon as a second finger appears, cleared 120ms after all fingers lift
+
 cv.addEventListener('touchstart',e=>{
   e.preventDefault();
-  if(e.touches.length===2){pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);pinchZ0=zoom;return;}
+  // Second finger appearing — enter pinch mode immediately
+  if(e.touches.length>=2){
+    isPinching=true;
+    clearTimeout(longPressT);longPressT=null;
+    clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
+    panning=false;
+    pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    pinchZ0=zoom;
+    return;
+  }
+  // Single finger — don't do anything if we're still in pinch cool-down
+  if(isPinching)return;
+
   const sp=evPt(e);lastTouchPos=sp;
   const raw=s2w(sp.x,sp.y);
 
@@ -971,7 +997,6 @@ cv.addEventListener('touchstart',e=>{
 
   // Empty space: pan immediately
   if(hid===null){
-    // Check if tapping a tile origin handle (drag without needing button press)
     const oid=hitOrigin(raw);
     if(oid!==null){dragOriginId=oid;dragPending=true;dragPendingSp=sp;return;}
     panning=true;panSt=sp;panO={...pan};
@@ -988,17 +1013,26 @@ cv.addEventListener('touchstart',e=>{
     return;
   }
 
-  // Floor or other: tap to select, long-press handled in longPressT
+  // Floor or other: tap to select, long-press for sheet
   clearTimeout(longPressT);
   longPressT=setTimeout(()=>{longPressT=null;const h=hitTest(s2w(sp.x,sp.y));if(h!==null){selObj(h);openSheet();}},500);
   handleDown(sp,true);
 },{passive:false});
 
 cv.addEventListener('touchmove',e=>{
-  e.preventDefault();clearTimeout(longPressT);longPressT=null;
-  if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);return;}
+  e.preventDefault();
+  if(e.touches.length>=2){
+    isPinching=true;
+    clearTimeout(longPressT);longPressT=null;
+    clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
+    panning=false;
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);
+    return;
+  }
+  if(isPinching)return;
+  clearTimeout(longPressT);longPressT=null;
   lastTouchPos=evPt(e);
-  // Activate drag if moved enough while holding drain/screen
   if(touchHoldTimer!==null&&Math.hypot(lastTouchPos.x-touchHoldSp.x,lastTouchPos.y-touchHoldSp.y)>10){
     clearTimeout(touchHoldTimer);touchHoldTimer=null;dragging=true;cv.style.cursor='grabbing';
   }
@@ -1006,7 +1040,14 @@ cv.addEventListener('touchmove',e=>{
 },{passive:false});
 
 cv.addEventListener('touchend',e=>{
-  e.preventDefault();clearTimeout(longPressT);longPressT=null;
+  e.preventDefault();
+  clearTimeout(longPressT);longPressT=null;
+  // When all fingers lift, keep pinch guard on for a moment so stray tap doesn't fire
+  if(e.touches.length===0&&isPinching){
+    setTimeout(()=>{isPinching=false;},120);
+    panning=false;handleUp(true);return;
+  }
+  if(isPinching)return;
 
   // PLACEMENT MODE: place on release
   if(tool==='place-drain'||tool==='place-screen'){mw=s2w(lastTouchPos.x,lastTouchPos.y);placeObject(lastTouchPos);return;}
@@ -1036,15 +1077,16 @@ cv.addEventListener('touchend',e=>{
   if(touchHoldSp!==null){touchHoldSp=null;dragOriginId=null;handleUp(true);return;}
   if(editDragVert!==null){handleUp(true);return;}
 
-  // Double-tap detection for everything else
+  // Double-tap detection
   const sp=evPt(e);const now=Date.now();
   if(now-lastTapT<320&&Math.hypot(sp.x-lastTapPos.x,sp.y-lastTapPos.y)<44){lastTapT=0;handleDbl(sp);}
   else{lastTapT=now;lastTapPos=sp;}
   handleUp(true);
 },{passive:false});
-cv.addEventListener('touchstart',e=>{if(e.touches.length===2){pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);pinchZ0=zoom;}},{passive:true});
-cv.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);}},{passive:true});
-
+cv.addEventListener('touchcancel',e=>{
+  isPinching=false;clearTimeout(longPressT);clearTimeout(touchHoldTimer);
+  touchHoldTimer=null;touchHoldSp=null;panning=false;handleUp(true);
+},{passive:true});
 // ─ HANDLERS ───────────────────────────────────
 function placeObject(sp){
   const raw=s2w(sp.x,sp.y);
@@ -1167,7 +1209,15 @@ function switchTab(tab){
   const tb=document.getElementById('toolbar'),cw=document.getElementById('canvas-wrap');
   const mdb=document.getElementById('mob-draw-bar');
   if(tab==='design'){bom.classList.remove('show');cw.style.display='';sp.style.display='';tb.style.display='';if(mdb)mdb.style.display='';resize();}
-  else{bom.classList.add('show');cw.style.display='none';sp.style.display='none';tb.style.display='none';if(mdb)mdb.style.display='none';refreshQuote();}
+  else{
+    bom.classList.add('show');cw.style.display='none';sp.style.display='none';tb.style.display='none';if(mdb)mdb.style.display='none';
+    // Always reset to preview tab
+    bomTab('p');
+    // Reset scroll to top
+    const qs=document.getElementById('quote-scroll-outer');if(qs)qs.scrollTop=0;
+    const bs=document.getElementById('bom-settings');if(bs)bs.scrollTop=0;
+    refreshQuote();
+  }
   document.getElementById('tab-d').classList.toggle('active',tab==='design');
   document.getElementById('tab-b').classList.toggle('active',tab==='bom');
 }
