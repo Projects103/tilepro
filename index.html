@@ -188,9 +188,9 @@ select.inp{cursor:pointer}
   cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.4);
   white-space:nowrap;z-index:10;
   opacity:0;pointer-events:none;
-  transition:opacity .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+  transition:opacity .5s ease, transform .55s cubic-bezier(.34,1.56,.64,1);
 }
-#quote-reset-btn.visible{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0)}
+#quote-reset-btn.visible{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);transition:opacity .15s ease, transform .2s cubic-bezier(.34,1.56,.64,1)}
 #quote-reset-btn:hover,#quote-reset-btn:active{border-color:var(--ac);color:var(--ac)}
 #quote-scale-host{margin:0 auto;flex-shrink:0;position:relative}
 #quote-scale-wrap{transform-origin:top left;display:block}
@@ -1073,7 +1073,7 @@ function drawFixturePrev(){
   const pos=ws?{...ws.pt}:snapObj(mw);
   const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
   const wallPerp=wallParallel+90;
-  const angByType={wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
+  const angByType={wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
   const baseAng=angByType[pFixture.type]??wallPerp;
   // Preview toilet offset
   let drawPos={...pos};
@@ -1335,7 +1335,7 @@ function placeObject(sp){
     const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
     // Wall-perpendicular angle (for wall/screen/toilet/vanity which stick OUT from wall)
     const wallPerp=wallParallel+90;
-    const angByType={wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
+    const angByType={wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
     const baseAng=angByType[pFixture.type]??wallPerp;
     let pos=ws?{...ws.pt}:snapObj(raw);
     // Toilet: offset so the back (tank) touches the wall, not the centre
@@ -1347,6 +1347,7 @@ function placeObject(sp){
     const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
     const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
     const fx={...pFixture,id:nid++,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,name:`${typeLabel[pFixture.type]} ${typeCount}`};
+    fx._manualAngle=false;
     objs.push(fx);pFixture=null;tool='select';
     document.querySelectorAll('.tbtn[id^="t-"]').forEach(b=>b.classList.remove('on'));
     document.getElementById('t-select').classList.add('on');
@@ -1365,7 +1366,8 @@ function handleMove(sp,isTouch){
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
     if(o?.type==='drain'||o?.type==='toilet'||o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
     if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='door'||o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='door'||o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;const wallParallel=ws.wallAngle*180/Math.PI;o.angle=((wallParallel+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'||o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;const wallPerp=ws.wallAngle*180/Math.PI+90;o.angle=((wallPerp+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
   if(!isTouch){
     const oh=hitOrigin(raw);cv.style.cursor=(tool==='select'&&oh)?'move':(tool==='select'&&hitTest(raw))?'pointer':'default';
@@ -1559,7 +1561,7 @@ function deleteSelected(){
 // ═══════════════════════════════════════════════
 function selObj(id){selId=id;updatePanel();render();}
 function selObjOpen(id){selId=id;updatePanel();if(isMob())openSheet();render();}
-function sp(id,prop,val){const o=objs.find(o=>o.id===id);if(!o)return;o[prop]=val;const refresh=['tiled','tileW','tileH','groutW','tilePrice','wastage','angle','tileColor','groutColor','groutBagSizeKg','groutBagPrice','tileThick'];if(refresh.includes(prop))updatePanel();render();}
+function sp(id,prop,val){const o=objs.find(o=>o.id===id);if(!o)return;if(prop==='angle')o._manualAngle=true;o[prop]=val;const refresh=['tiled','tileW','tileH','groutW','tilePrice','wastage','angle','tileColor','groutColor','groutBagSizeKg','groutBagPrice','tileThick'];if(refresh.includes(prop))updatePanel();render();}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
 function toggleOriginMode(fid){settingOrigin=settingOrigin===fid?null:fid;if(settingOrigin!=null&&isMob())closeSheet();cv.style.cursor=settingOrigin!=null?'crosshair':'default';updatePanel();render();}
 
@@ -1768,11 +1770,12 @@ function applyScreenOffset(sid){
   const pos={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
   const wallParallel=wAng*180/Math.PI;
   const wallPerp=wallParallel+90;
-  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallPerp,vanity:wallPerp,door:wallParallel-90,window:wallParallel+90};
-  const ang=angByType[sc.type]??wallPerp;
+  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
+  const autoAng=((angByType[sc.type]??wallPerp)%360+360)%360;
   saveUndo();
   sc.x=pos.x;sc.y=pos.y;
-  sc.angle=((ang%360)+360)%360;
+  // Preserve manually set angle; only auto-angle if user hasn't manually rotated this object
+  if(!sc._manualAngle)sc.angle=autoAng;
   sc.refWall=wi;sc.refOffset=d;
   // Toilet: push inward so back of toilet touches wall
   if(sc.type==='toilet'){const rad=sc.angle*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(rad)*dep;sc.y+=Math.sin(rad)*dep;}
@@ -1934,9 +1937,9 @@ function quoteDocHTML(){
   const gst=grand*0.1;
   const grandWithGST=grand+gst;
   const totRows=[];
-  if(mat)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);
-  if(lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
-  totRows.push(`<div class="q-tot-row"><span>Subtotal (excl. GST)</span><span class="tv">$${grand.toFixed(2)}</span></div>`);
+  if(mat&&lab)totRows.push(`<div class="q-tot-row"><span>Materials</span><span class="tv">$${mat.toFixed(2)}</span></div>`);
+  if(mat&&lab)totRows.push(`<div class="q-tot-row"><span>Labour</span><span class="tv">$${lab.toFixed(2)}</span></div>`);
+  totRows.push(`<div class="q-tot-row" style="font-weight:700;border-top:2px solid #f0ebe0;margin-top:2px;padding-top:5px"><span>Subtotal (excl. GST)</span><span class="tv" style="font-weight:700;color:#1a1a2e">$${grand.toFixed(2)}</span></div>`);
   totRows.push(`<div class="q-tot-row"><span>GST (10%)</span><span class="tv">$${gst.toFixed(2)}</span></div>`);
   const tot=`<div class="q-totals"><div class="q-tot-inner">${totRows.join('')}</div><div class="q-grand-bar" style="background:${ac}"><span class="gl">Total (incl. GST)</span><span class="gv">$${grandWithGST.toFixed(2)}</span></div></div>`;
   const notes=qNotes?`<div class="q-notes-box">${qNotes.replace(/\n/g,'<br>')}</div>`:'';
