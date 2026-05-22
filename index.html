@@ -321,10 +321,10 @@ select.inp{cursor:pointer}
       <button class="cbar-btn" id="cbar-D" onclick="triggerConstraint('D')"><span class="ck">D</span>Length</button>
     </div>
     <div class="zoom-wrap">
-      <button class="zbtn" onclick="adjZoom(1.2)">+</button>
+      <button class="zbtn" onclick="adjZoom(1.2)" title="Zoom in">+</button>
       <div class="zlvl" id="zlvl">100%</div>
-      <button class="zbtn" onclick="adjZoom(1/1.2)">−</button>
-      <button class="zbtn" onclick="fitView()" style="font-size:9px">FIT</button>
+      <button class="zbtn" onclick="adjZoom(1/1.2)" title="Zoom out">−</button>
+      <button class="zbtn" onclick="fitView()" style="font-size:8px;letter-spacing:-.02em" title="Reset view to fit all floors">FIT</button>
     </div>
   </div>
 
@@ -339,6 +339,8 @@ select.inp{cursor:pointer}
           <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
         <button class="btn btn-ol" onclick="exportPDF()">
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>Export PDF</button>
+        <button class="btn btn-ol" onclick="scaleQuoteDoc(true)" title="Reset zoom to fit">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset View</button>
       </div>
       <div class="sec"><div class="sec-t">Business</div>
         <div class="row"><label class="lbl">Logo</label>
@@ -950,6 +952,8 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 // ─ TOUCH ──────────────────────────────────────
 let pinchD0=0,pinchZ0=0;
+let pinchMid0={x:0,y:0}; // midpoint at pinch start
+let pinchPan0={x:0,y:0}; // pan at pinch start
 let isPinching=false;
 // Threshold-based pinch: delay processing single-touch by TAP_HOLD_MS.
 // If a second finger lands within that window, abort the tap and pinch instead.
@@ -1010,6 +1014,9 @@ cv.addEventListener('touchstart',e=>{
     isPinching=true;
     pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
     pinchZ0=zoom;
+    const r0=cv.getBoundingClientRect();
+    pinchMid0={x:(e.touches[0].clientX+e.touches[1].clientX)/2-r0.left,y:(e.touches[0].clientY+e.touches[1].clientY)/2-r0.top};
+    pinchPan0={...pan};
     return;
   }
   if(isPinching)return;
@@ -1028,7 +1035,16 @@ cv.addEventListener('touchmove',e=>{
     clearTimeout(touchHoldTimer);touchHoldTimer=null;touchHoldSp=null;
     panning=false;isPinching=true;
     const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    setZoom(pinchZ0*d/pinchD0,cv.width/2,cv.height/2);
+    const newZoom=Math.max(0.007,Math.min(8,pinchZ0*d/pinchD0));
+    const r=cv.getBoundingClientRect();
+    const curMid={x:(e.touches[0].clientX+e.touches[1].clientX)/2-r.left,y:(e.touches[0].clientY+e.touches[1].clientY)/2-r.top};
+    // Zoom around pinch midpoint + pan by midpoint delta
+    const wx=(pinchMid0.x-pinchPan0.x)/pinchZ0,wy=(pinchMid0.y-pinchPan0.y)/pinchZ0;
+    pan.x=curMid.x-wx*newZoom;
+    pan.y=curMid.y-wy*newZoom;
+    zoom=newZoom;
+    document.getElementById('zlvl').textContent=Math.round(zoom/0.15*100)+'%';
+    render();
     return;
   }
   if(isPinching)return;
