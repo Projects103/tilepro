@@ -260,8 +260,8 @@ select.inp{cursor:pointer}
   .bom-preview-wrap.mob-hide{display:none}
   .bom-mob-tabs{display:flex}
   .bom-area{flex-direction:column}
-  /* Mobile quote preview: JS scales the doc to fit screen width */
-  .bom-preview-wrap{padding:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#d8d4ce;align-items:center;padding:12px 0}
+  /* Mobile quote preview: JS scales the doc to fit screen width; overflow:auto enables scroll when zoomed */
+  .bom-preview-wrap{padding:8px;overflow:auto;-webkit-overflow-scrolling:touch;background:#d8d4ce;align-items:flex-start}
   .constraint-bar{display:none!important}
 }
 @media(min-width:701px){
@@ -1214,7 +1214,7 @@ function switchTab(tab){
     const qs=document.getElementById('bom-preview-wrap');if(qs)qs.scrollTop=0;
     const bs=document.getElementById('bom-settings');if(bs)bs.scrollTop=0;
     refreshQuote();
-    setTimeout(scaleQuoteDoc,50);
+    setTimeout(()=>scaleQuoteDoc(true),50); // reset zoom on tab switch
   }
   document.getElementById('tab-d').classList.toggle('active',tab==='design');
   document.getElementById('tab-b').classList.toggle('active',tab==='bom');
@@ -1504,7 +1504,21 @@ function quoteDocHTML(){
 // A4 natural pixel dimensions at 96dpi: 210mm and 297mm
 const A4_W_PX=794, A4_H_PX=1123;
 
-function scaleQuoteDoc(){
+// Quote view state
+let quoteFitScale=1;     // computed to fit the container
+let quoteUserZoom=1;     // additional zoom from user pinch gestures
+
+function applyQuoteTransform(){
+  const wrap=document.getElementById('quote-scale-wrap');
+  const host=document.getElementById('quote-scale-host');
+  if(!wrap||!host)return;
+  const total=quoteFitScale*quoteUserZoom;
+  wrap.style.transform=`scale(${total})`;
+  host.style.width=Math.round(A4_W_PX*total)+'px';
+  host.style.height=Math.round(A4_H_PX*total)+'px';
+}
+
+function scaleQuoteDoc(resetUserZoom){
   const wrap=document.getElementById('quote-scale-wrap');
   const host=document.getElementById('quote-scale-host');
   const preview=document.getElementById('bom-preview-wrap');
@@ -1519,16 +1533,68 @@ function scaleQuoteDoc(){
     const availW=preview.clientWidth-40;
     scale=Math.min(availH/A4_H_PX, availW/A4_W_PX, 1);
   }
-  scale=Math.max(0.2,scale);
-  wrap.style.transform=`scale(${scale})`;
-  host.style.width=Math.round(A4_W_PX*scale)+'px';
-  host.style.height=Math.round(A4_H_PX*scale)+'px';
+  quoteFitScale=Math.max(0.2,scale);
+  if(resetUserZoom)quoteUserZoom=1;
+  applyQuoteTransform();
 }
-window.addEventListener('resize',scaleQuoteDoc);
+window.addEventListener('resize',()=>scaleQuoteDoc(false));
+
+// ── Quote pinch-zoom + two-finger pan ──────────
+(()=>{
+  let active=false,pd0=0,pz0=1,prevMid=null;
+
+  function getMid(t){return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};}
+  function getPD(t){return Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
+
+  // Wire up after DOM is ready
+  window.addEventListener('load',()=>{
+    const pvw=document.getElementById('bom-preview-wrap');
+    if(!pvw)return;
+
+    pvw.addEventListener('touchstart',e=>{
+      if(e.touches.length===2){
+        e.preventDefault();
+        active=true;
+        pd0=getPD(e.touches);
+        pz0=quoteUserZoom;
+        prevMid=getMid(e.touches);
+      }
+    },{passive:false});
+
+    pvw.addEventListener('touchmove',e=>{
+      if(!active||e.touches.length<2)return;
+      e.preventDefault();
+      // Zoom
+      const d=getPD(e.touches);
+      quoteUserZoom=Math.max(0.3,Math.min(6,pz0*d/pd0));
+      // Pan — move scroll by negative midpoint delta
+      const mid=getMid(e.touches);
+      pvw.scrollLeft-=(mid.x-prevMid.x);
+      pvw.scrollTop -=(mid.y-prevMid.y);
+      prevMid=mid;
+      applyQuoteTransform();
+    },{passive:false});
+
+    pvw.addEventListener('touchend',e=>{
+      if(e.touches.length<2)active=false;
+    },{passive:true});
+    pvw.addEventListener('touchcancel',()=>{active=false;},{passive:true});
+
+    // Desktop: Ctrl+scroll to zoom quote
+    pvw.addEventListener('wheel',e=>{
+      if(e.ctrlKey||e.metaKey){
+        e.preventDefault();
+        const f=e.deltaY<0?1.12:1/1.12;
+        quoteUserZoom=Math.max(0.3,Math.min(6,quoteUserZoom*f));
+        applyQuoteTransform();
+      }
+    },{passive:false});
+  });
+})();
 
 function refreshQuote(){
   document.getElementById('quote-preview').innerHTML=`<div class="quote-doc">${quoteDocHTML()}</div>`;
-  setTimeout(scaleQuoteDoc,0);
+  setTimeout(()=>scaleQuoteDoc(false),0);
 }
 
 function getSharedCSS(){
