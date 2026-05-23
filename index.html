@@ -1073,11 +1073,12 @@ function drawFixturePrev(){
   const pos=ws?{...ws.pt}:snapObj(mw);
   const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
   const wallPerp=wallParallel+90;
-  const angByType={wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
+  const angByType={wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
   const baseAng=angByType[pFixture.type]??wallPerp;
   // Preview toilet offset
   let drawPos={...pos};
-  if(pFixture.type==='toilet'&&ws){const ang=baseAng*Math.PI/180;const depth=(pFixture.depth||680)/2;drawPos={x:pos.x+Math.cos(ang)*depth,y:pos.y+Math.sin(ang)*depth};}
+  if(pFixture.type==='toilet'&&ws){const perpRad=(baseAng+90)*Math.PI/180;const depth=(pFixture.depth||680)/2;drawPos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};}
+  if(pFixture.type==='vanity'&&ws){const perpRad=(baseAng+90)*Math.PI/180;const depth=pFixture.depth||500;drawPos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};}
   const sp=w2s(drawPos.x,drawPos.y);
   ctx.globalAlpha=.7;
   const tmp={...pFixture,x:drawPos.x,y:drawPos.y,angle:((baseAng%360)+360)%360,id:-1};
@@ -1335,14 +1336,19 @@ function placeObject(sp){
     const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
     // Wall-perpendicular angle (for wall/screen/toilet/vanity which stick OUT from wall)
     const wallPerp=wallParallel+90;
-    const angByType={wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
+    const angByType={wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
     const baseAng=angByType[pFixture.type]??wallPerp;
     let pos=ws?{...ws.pt}:snapObj(raw);
     // Toilet: offset so the back (tank) touches the wall, not the centre
     if(pFixture.type==='toilet'&&ws){
-      const ang=baseAng*Math.PI/180;
+      const perpRad=(baseAng+90)*Math.PI/180;
       const depth=(pFixture.depth||680)/2;
-      pos={x:pos.x+Math.cos(ang)*depth,y:pos.y+Math.sin(ang)*depth};
+      pos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};
+    }
+    if(pFixture.type==='vanity'&&ws){
+      const perpRad=(baseAng+90)*Math.PI/180;
+      const depth=pFixture.depth||500;
+      pos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};
     }
     const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
     const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
@@ -1364,10 +1370,12 @@ function handleMove(sp,isTouch){
   if(dragging&&selId!==null){
     const o=objs.find(o=>o.id===selId);
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
-    if(o?.type==='drain'||o?.type==='toilet'||o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
-    if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='door'||o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;const wallParallel=ws.wallAngle*180/Math.PI;o.angle=((wallParallel+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='toilet'||o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;const wallPerp=ws.wallAngle*180/Math.PI+90;o.angle=((wallPerp+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
+    if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=(o.depth||680)/2;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=o.depth||500;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='door'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
   if(!isTouch){
     const oh=hitOrigin(raw);cv.style.cursor=(tool==='select'&&oh)?'move':(tool==='select'&&hitTest(raw))?'pointer':'default';
@@ -1770,15 +1778,17 @@ function applyScreenOffset(sid){
   const pos={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
   const wallParallel=wAng*180/Math.PI;
   const wallPerp=wallParallel+90;
-  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallPerp+90,vanity:wallPerp+90,door:wallParallel+90,window:wallParallel+180};
+  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
   const autoAng=((angByType[sc.type]??wallPerp)%360+360)%360;
   saveUndo();
   sc.x=pos.x;sc.y=pos.y;
   // Preserve manually set angle; only auto-angle if user hasn't manually rotated this object
   if(!sc._manualAngle)sc.angle=autoAng;
   sc.refWall=wi;sc.refOffset=d;
-  // Toilet: push inward so back of toilet touches wall
-  if(sc.type==='toilet'){const rad=sc.angle*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(rad)*dep;sc.y+=Math.sin(rad)*dep;}
+  // Offset toilet/vanity from wall using perpendicular direction
+  const effAng=sc._manualAngle?sc.angle:autoAng;
+  if(sc.type==='toilet'){const perpRad=(effAng+90)*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(perpRad)*dep;sc.y+=Math.sin(perpRad)*dep;}
+  if(sc.type==='vanity'){const perpRad=(effAng+90)*Math.PI/180;const dep=sc.depth||500;sc.x+=Math.cos(perpRad)*dep;sc.y+=Math.sin(perpRad)*dep;}
   updatePanel();render();
 }
 
