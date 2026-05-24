@@ -1120,7 +1120,7 @@ function drawFixturePrev(){
   const pos=ws?{...ws.pt}:snapObj(mw);
   const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
   const wallPerp=wallParallel+90;
-  const angByType={wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
+  const angByType={wall:wallPerp+180,toilet:ws?ws.inwardPerp*180/Math.PI+90:wallParallel+180,vanity:ws?ws.inwardPerp*180/Math.PI+90:wallParallel+180,door:wallParallel+180,window:wallParallel+180};
   const baseAng=angByType[pFixture.type]??wallPerp;
   // Preview toilet offset
   let drawPos={...pos};
@@ -1393,7 +1393,7 @@ function placeObject(sp){
     const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
     // Wall-perpendicular angle (for wall/screen/toilet/vanity which stick OUT from wall)
     const wallPerp=wallParallel+90;
-    const angByType={wall:wallPerp,toilet:ws?ws.inwardPerp*180/Math.PI-90:wallParallel,vanity:ws?ws.inwardPerp*180/Math.PI-90:wallParallel,door:wallParallel,window:wallParallel};
+    const angByType={wall:wallPerp+180,toilet:ws?ws.inwardPerp*180/Math.PI+90:wallParallel+180,vanity:ws?ws.inwardPerp*180/Math.PI+90:wallParallel+180,door:wallParallel+180,window:wallParallel+180};
     const baseAng=angByType[pFixture.type]??wallPerp;
     let pos=ws?{...ws.pt}:snapObj(raw);
     // Toilet/vanity: origin (0,0) IS the wall contact point — no additional offset needed on placement
@@ -1418,10 +1418,10 @@ function handleMove(sp,isTouch){
   if(dragging&&selId!==null){
     const o=objs.find(o=>o.id===selId);
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
-    if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
+    if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;dimAnnotations=dimAnnotations.filter(da=>da.objId!==o.id);render();return;}
     if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='toilet'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'){dimAnnotations=dimAnnotations.filter(da=>da.objId!==o.id);const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='vanity'){dimAnnotations=dimAnnotations.filter(da=>da.objId!==o.id);const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='door'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
@@ -1841,7 +1841,7 @@ function applyScreenOffset(sid){
   const wallPtM={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
   const inSign=(cxF-wallPtM.x)*n2x+(cyF-wallPtM.y)*n2y>0?1:-1;
   const inwardAngOffset=wallInward*180/Math.PI+inSign*90;
-  const angByType={screen:wallPerp,wall:wallPerp,toilet:inwardAngOffset-90,vanity:inwardAngOffset-90,door:wallParallel,window:wallParallel};
+  const angByType={screen:wallPerp,wall:wallPerp,toilet:inwardAngOffset+90,vanity:inwardAngOffset+90,door:wallParallel,window:wallParallel};
   const autoAng=((angByType[sc.type]??wallPerp)%360+360)%360;
   saveUndo();
   sc.x=pos.x;sc.y=pos.y;
@@ -1963,7 +1963,7 @@ function confirmOffset(){
   const cx=fl.vertices.reduce((s,v)=>s+v.x,0)/n,cy=fl.vertices.reduce((s,v)=>s+v.y,0)/n;
   const toCx=cx-a.x,toCy=cy-a.y;
   const inSign=(toCx*nx+toCy*ny)>0?1:-1;
-  const correctAng=wAng*180/Math.PI+inSign*90-90;
+  const correctAng=wAng*180/Math.PI+inSign*90+90;
   // Position along wall
   const t=wLen>0?Math.min(d,wLen)/wLen:0;
   const wallPt={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
