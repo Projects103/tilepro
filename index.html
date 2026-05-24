@@ -283,6 +283,16 @@ select.inp{cursor:pointer}
   .bom-mob-tabs{display:none}
   #mob-draw-bar{display:none!important}
 }
+
+/* ── 3D VIEW ───────────────────────── */
+.view3d-area{flex:1;display:none;overflow:hidden;min-height:0}
+.view3d-area.show{display:flex}
+#cv3d{flex:1;display:block;touch-action:none;outline:none}
+.panel3d{width:var(--panel);flex-shrink:0;background:var(--sf);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
+.panel3d .sp-body{flex:1;overflow-y:auto}
+.hud3d{position:absolute;bottom:46px;right:8px;display:flex;flex-direction:column;gap:3px;z-index:5;pointer-events:none}
+.hud3d button{pointer-events:all}
+@media(max-width:700px){.panel3d{display:none}}
 </style>
 </head>
 <body>
@@ -293,6 +303,7 @@ select.inp{cursor:pointer}
     <button class="hdr-icon-btn" onclick="openSettings()" title="Settings">⚙</button>
     <button class="tab-btn active" id="tab-d" onclick="switchTab('design')">Plan</button>
     <button class="tab-btn" id="tab-b" onclick="switchTab('bom')">Quote</button>
+    <button class="tab-btn" id="tab-3" onclick="switchTab('3d')">3D</button>
   </div>
 </header>
 
@@ -419,6 +430,58 @@ select.inp{cursor:pointer}
 </div>
 
 <!-- MOBILE DRAW BAR — in body flex, always accessible -->
+  <!-- 3D VIEW -->
+  <div class="view3d-area" id="view3d-area">
+    <canvas id="cv3d"></canvas>
+    <div class="panel3d">
+      <div class="sp-hdr">
+        <div class="sp-icon fl">◈</div>
+        <div class="sp-hdr-txt"><span class="sp-title">3D View</span><div class="sp-sub">Bathroom</div></div>
+      </div>
+      <div class="sp-body">
+        <div class="sec"><div class="sec-t">Room</div>
+          <div class="row"><label class="lbl">Ceiling Height (mm)</label>
+            <input class="inp" id="ceil-h-inp" type="number" value="2400" min="1000" max="6000" step="50" inputmode="numeric" onchange="setCeilH(+this.value)"></div>
+          <div class="brow" style="margin-top:5px">
+            <button class="btn btn-ol" onclick="build3DScene()">
+              <svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.7"/></svg>
+              Rebuild
+            </button>
+            <button class="btn btn-ol" onclick="resetOrbit()">⊙ Centre</button>
+          </div>
+        </div>
+        <div class="sec" id="wall3d-panel" style="display:none">
+          <div class="sec-t" id="wall3d-title">Selected Wall</div>
+          <div class="row"><label class="lbl">Tile Height <span id="wall-tile-h-lbl">0</span> mm</label>
+            <div class="slider-row">
+              <input type="range" id="wall-tile-h-sl" min="0" max="2400" value="0" step="25" oninput="setWallTileHSl(+this.value)">
+            </div>
+          </div>
+          <div class="row"><input class="inp" id="wall-tile-h" type="number" value="0" min="0" step="25" inputmode="numeric" onchange="setWallTileH(+this.value)"></div>
+          <div class="brow" style="margin-top:5px">
+            <button class="btn btn-ol" onclick="applyTileHAll()">Apply to All Walls</button>
+          </div>
+        </div>
+        <div class="sec"><div class="sec-t">Pipe Routing</div>
+          <label class="chk"><input type="checkbox" id="show-supply" checked onchange="build3DScene()"><span>Supply pipes (hot &amp; cold)</span></label>
+          <label class="chk"><input type="checkbox" id="show-drain" checked onchange="build3DScene()"><span>Drain pipe</span></label>
+          <div class="row" style="margin-top:6px"><label class="lbl">Pipe Style</label>
+            <select class="inp" id="pipe-style" onchange="build3DScene()">
+              <option value="standard">Standard (red / blue)</option>
+              <option value="copper">Copper</option>
+              <option value="white">White PVC</option>
+            </select>
+          </div>
+        </div>
+        <div class="sec"><div class="sec-t">Controls</div>
+          <div class="stat"><span class="sl">Rotate</span><span class="sv">Left drag</span></div>
+          <div class="stat"><span class="sl">Pan</span><span class="sv">Right drag / two-finger</span></div>
+          <div class="stat"><span class="sl">Zoom</span><span class="sv">Scroll / pinch</span></div>
+          <div class="stat"><span class="sl">Select wall</span><span class="sv">Click / tap</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
 <div id="mob-draw-bar">
   <!-- Drawing phase: undo vertex -->
   <button class="mdb-btn udv" id="mdb-undo" onclick="undoLastVertex()"><span class="mk">↩</span>Undo</button>
@@ -1528,19 +1591,34 @@ function switchTab(tab){
   const bom=document.getElementById('bom-area'),sp=document.getElementById('side-panel');
   const tb=document.getElementById('toolbar'),cw=document.getElementById('canvas-wrap');
   const mdb=document.getElementById('mob-draw-bar');
-  if(tab==='design'){bom.classList.remove('show');cw.style.display='';sp.style.display='';tb.style.display='';if(mdb)mdb.style.display='';resize();}
-  else{
-    bom.classList.add('show');cw.style.display='none';sp.style.display='none';tb.style.display='none';if(mdb)mdb.style.display='none';
-    // Always reset to preview tab
+  const v3d=document.getElementById('view3d-area');
+  // Hide all first
+  bom.classList.remove('show');v3d.classList.remove('show');
+  cw.style.display='none';sp.style.display='none';tb.style.display='none';if(mdb)mdb.style.display='none';
+  if(tab==='design'){
+    cw.style.display='';sp.style.display='';tb.style.display='';if(mdb)mdb.style.display='';
+    stop3D();resize();
+  } else if(tab==='bom'){
+    bom.classList.add('show');stop3D();
     bomTab('p');
-    // Reset scroll to top
     const qs=document.getElementById('bom-preview-wrap');if(qs)qs.scrollTop=0;
     const bs=document.getElementById('bom-settings');if(bs)bs.scrollTop=0;
-    refreshQuote();
-    setTimeout(()=>scaleQuoteDoc(true),50); // reset zoom on tab switch
+    refreshQuote();setTimeout(()=>scaleQuoteDoc(true),50);
+  } else if(tab==='3d'){
+    v3d.classList.add('show');
+    // Load Three.js if needed then init
+    if(typeof THREE==='undefined'){
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload=()=>{_init3D();build3DScene();};
+      document.head.appendChild(s);
+    } else {
+      _init3D();build3DScene();
+    }
   }
   document.getElementById('tab-d').classList.toggle('active',tab==='design');
   document.getElementById('tab-b').classList.toggle('active',tab==='bom');
+  document.getElementById('tab-3').classList.toggle('active',tab==='3d');
 }
 function bomTab(t){document.getElementById('bom-settings').classList.toggle('mob-show',t==='s');document.getElementById('bom-preview-wrap').classList.toggle('mob-hide',t==='s');document.getElementById('bmt-p').classList.toggle('active',t==='p');document.getElementById('bmt-s').classList.toggle('active',t==='s');}
 
@@ -2411,12 +2489,32 @@ td.pr,th.pr{text-align:right;font-weight:700;color:#1a1a2e}td.na{color:#ccc;text
 
 function printQuote(){
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — Print</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — Print</title><style>${getSharedCSS()}
+/* ── 3D VIEW ───────────────────────── */
+.view3d-area{flex:1;display:none;overflow:hidden;min-height:0}
+.view3d-area.show{display:flex}
+#cv3d{flex:1;display:block;touch-action:none;outline:none}
+.panel3d{width:var(--panel);flex-shrink:0;background:var(--sf);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
+.panel3d .sp-body{flex:1;overflow-y:auto}
+.hud3d{position:absolute;bottom:46px;right:8px;display:flex;flex-direction:column;gap:3px;z-index:5;pointer-events:none}
+.hud3d button{pointer-events:all}
+@media(max-width:700px){.panel3d{display:none}}
+</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script></body></html>`);
   w.document.close();
 }
 function exportPDF(){
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quote — PDF</title><style>${getSharedCSS()}
+/* ── 3D VIEW ───────────────────────── */
+.view3d-area{flex:1;display:none;overflow:hidden;min-height:0}
+.view3d-area.show{display:flex}
+#cv3d{flex:1;display:block;touch-action:none;outline:none}
+.panel3d{width:var(--panel);flex-shrink:0;background:var(--sf);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
+.panel3d .sp-body{flex:1;overflow-y:auto}
+.hud3d{position:absolute;bottom:46px;right:8px;display:flex;flex-direction:column;gap:3px;z-index:5;pointer-events:none}
+.hud3d button{pointer-events:all}
+@media(max-width:700px){.panel3d{display:none}}
+</style></head><body><div class="quote-doc">${quoteDocHTML()}</div><script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
   w.document.close();
 }
 function quoteGrandTotal(){
@@ -2477,6 +2575,405 @@ window.addEventListener('load',()=>{
     if(e.target.matches('input[type=range]'))e.stopPropagation();
   },{capture:true,passive:false});
 });
+// ═══════════════════════════════════════════════
+// 3D VIEW
+// ═══════════════════════════════════════════════
+let t3=null;         // {scene,cam,ren,ceil}
+let walls3d=[];      // selectable wall refs
+let sel3d=null;      // {floorId,wallIdx}
+let wallTileH={};    // key=`${fid}_${wi}`, value mm
+let ceilH3d=2400;    // mm
+let raf3d=null;
+const MM=1/1000;     // mm→m
+
+let orb={theta:0.7,phi:1.1,r:6,tx:0,ty:1.2,tz:0};
+let orbDrag={active:false,btn:0,x0:0,y0:0};
+let t3_pinchD0=1,t3_pinchR0=1,t3_lastTouch=null;
+
+function _init3D(){
+  if(t3){resize3D();return;}
+  const cv=document.getElementById('cv3d');
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0c1822);
+  scene.fog=new THREE.FogExp2(0x0c1822,0.03);
+  const cam=new THREE.PerspectiveCamera(52,1,0.01,200);
+  const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+  ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  ren.shadowMap.enabled=true;
+  ren.shadowMap.type=THREE.PCFSoftShadowMap;
+  // Lights
+  const amb=new THREE.AmbientLight(0xc8d8e8,0.6);scene.add(amb);
+  const sun=new THREE.DirectionalLight(0xfff8e0,0.9);
+  sun.position.set(6,12,6);sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.near=0.1;sun.shadow.camera.far=50;
+  sun.shadow.camera.left=sun.shadow.camera.bottom=-12;
+  sun.shadow.camera.right=sun.shadow.camera.top=12;
+  scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x8090b0,0.4);fill.position.set(-5,3,-4);scene.add(fill);
+  const ceilLight=new THREE.PointLight(0xfff8f0,0.9,10);
+  ceilLight.position.set(0,ceilH3d*MM-0.15,0);scene.add(ceilLight);
+  const grid=new THREE.GridHelper(30,60,0x1e3050,0x142030);scene.add(grid);
+  t3={scene,cam,ren,ceilLight,sun};
+  setupOrb3D(cv);
+  cv.addEventListener('click',onClick3D);
+  cv.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    if(e.touches.length===2){orbDrag.active=false;t3_pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);t3_pinchR0=orb.r;}
+    else{orbDrag.active=true;orbDrag.btn=0;orbDrag.x0=e.touches[0].clientX;orbDrag.y0=e.touches[0].clientY;t3_lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};}
+  },{passive:false});
+  cv.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    if(e.touches.length===2){orbDrag.active=false;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);orb.r=Math.max(0.5,Math.min(30,t3_pinchR0*t3_pinchD0/d));orbApply();}
+    else if(orbDrag.active){const x=e.touches[0].clientX,y=e.touches[0].clientY;orb.theta-=(x-orbDrag.x0)*0.008;orb.phi+=(y-orbDrag.y0)*0.008;orbDrag.x0=x;orbDrag.y0=y;orbApply();}
+  },{passive:false});
+  cv.addEventListener('touchend',e=>{
+    orbDrag.active=false;
+    if(t3_lastTouch&&e.changedTouches.length===1){const dx=Math.abs(e.changedTouches[0].clientX-t3_lastTouch.x),dy=Math.abs(e.changedTouches[0].clientY-t3_lastTouch.y);if(dx<8&&dy<8)onClick3D(e.changedTouches[0]);}
+    t3_lastTouch=null;
+  },{passive:true});
+  resize3D();orbApply();animate3D();
+}
+
+function setupOrb3D(cv){
+  cv.addEventListener('mousedown',e=>{orbDrag.active=true;orbDrag.btn=e.button;orbDrag.x0=e.clientX;orbDrag.y0=e.clientY;e.preventDefault();});
+  window.addEventListener('mousemove',e=>{
+    if(!orbDrag.active)return;
+    const dx=e.clientX-orbDrag.x0,dy=e.clientY-orbDrag.y0;orbDrag.x0=e.clientX;orbDrag.y0=e.clientY;
+    if(orbDrag.btn===0){orb.theta-=dx*0.007;orb.phi=Math.max(0.05,Math.min(Math.PI-0.05,orb.phi+dy*0.007));}
+    else{const s=orb.r*0.002;orb.tx-=(Math.cos(orb.theta)*dx+Math.sin(orb.theta)*dy*0.3)*s;orb.tz+=(Math.sin(orb.theta)*dx-Math.cos(orb.theta)*dy*0.3)*s;}
+    orbApply();
+  });
+  window.addEventListener('mouseup',()=>{orbDrag.active=false;});
+  cv.addEventListener('wheel',e=>{e.preventDefault();orb.r=Math.max(0.5,Math.min(30,orb.r+e.deltaY*0.01));orbApply();},{passive:false});
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+}
+
+function orbApply(){
+  if(!t3)return;
+  const ph=Math.max(0.05,Math.min(Math.PI-0.05,orb.phi));
+  t3.cam.position.set(orb.tx+orb.r*Math.sin(ph)*Math.cos(orb.theta),orb.ty+orb.r*Math.cos(ph),orb.tz+orb.r*Math.sin(ph)*Math.sin(orb.theta));
+  t3.cam.lookAt(orb.tx,orb.ty,orb.tz);
+}
+
+function resetOrbit(){
+  const floors=objs.filter(o=>o.type==='floor'&&!o._editing);
+  if(floors.length){let sx=0,sz=0,cnt=0;for(const fl of floors)for(const v of fl.vertices){sx+=v.x;sz+=v.y;cnt++;}orb.tx=sx/cnt*MM;orb.tz=-sz/cnt*MM;}
+  orb.ty=ceilH3d*MM/2;orb.r=6;orb.theta=0.7;orb.phi=1.1;
+  orbApply();
+}
+
+function resize3D(){
+  if(!t3)return;
+  const a=document.getElementById('view3d-area'),p=document.getElementById('cv3d').parentElement;
+  const w=a.clientWidth-(document.querySelector('.panel3d')?.clientWidth||0),h=a.clientHeight;
+  if(!w||!h)return;
+  t3.ren.setSize(w,h);t3.cam.aspect=w/h;t3.cam.updateProjectionMatrix();
+}
+
+// ─ SCENE BUILD ────────────────────────────────
+function build3DScene(){
+  if(!t3)return;
+  const s=t3.scene;
+  for(let i=s.children.length-1;i>=0;i--){const o=s.children[i];if(o.isLight||o.type==='GridHelper')continue;s.remove(o);}
+  walls3d=[];
+  for(const fl of objs.filter(o=>o.type==='floor'&&!o._editing&&o.vertices.length>=3))buildFloor3D(fl);
+  buildFixtures3D();
+  buildPipes3D();
+  show3DPanel();
+}
+
+function tileTex3D(tw,th,tc,gc,gw){
+  const r=1.5,cw=Math.max(4,Math.round(tw*r)),ch=Math.max(4,Math.round(th*r));
+  const can=document.createElement('canvas');can.width=cw;can.height=ch;
+  const ctx=can.getContext('2d');
+  ctx.fillStyle=gc||'#c0b090';ctx.fillRect(0,0,cw,ch);
+  const gp=Math.max(1,Math.round(gw*r));
+  ctx.fillStyle=tc||'#e0d4c0';ctx.fillRect(gp,gp,cw-gp*2,ch-gp*2);
+  const tex=new THREE.CanvasTexture(can);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;return tex;
+}
+
+function wallGeo3D(ax,ay,bx,by,y0,y1){
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array([ax*MM,y0,-ay*MM,bx*MM,y0,-by*MM,bx*MM,y1,-by*MM,ax*MM,y1,-ay*MM]),3));
+  geo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array([0,0,1,0,1,1,0,1]),2));
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0,1,2,0,2,3]),1));
+  geo.computeVertexNormals();return geo;
+}
+
+function buildFloor3D(fl){
+  const vs=fl.vertices,n=vs.length,tw=fl.tileW||300,th=fl.tileH||300;
+  // Floor surface
+  const shape=new THREE.Shape();shape.moveTo(vs[0].x*MM,-vs[0].y*MM);
+  for(let i=1;i<n;i++)shape.lineTo(vs[i].x*MM,-vs[i].y*MM);shape.closePath();
+  const fg=new THREE.ShapeGeometry(shape);fg.rotateX(-Math.PI/2);
+  let fm;
+  if(fl.tiled){
+    const tex=tileTex3D(tw,th,fl.tileColor,fl.groutColor,fl.groutW||3);
+    let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+    for(const v of vs){mnx=Math.min(mnx,v.x);mny=Math.min(mny,v.y);mxx=Math.max(mxx,v.x);mxy=Math.max(mxy,v.y);}
+    tex.repeat.set((mxx-mnx)/tw,(mxy-mny)/th);
+    fm=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide});
+  }else fm=new THREE.MeshLambertMaterial({color:0x1c2630,side:THREE.DoubleSide});
+  const fmesh=new THREE.Mesh(fg,fm);fmesh.position.y=0.002;fmesh.receiveShadow=true;t3.scene.add(fmesh);
+  // Ceiling
+  const cg=new THREE.ShapeGeometry(shape);cg.rotateX(Math.PI/2);
+  const cmesh=new THREE.Mesh(cg,new THREE.MeshLambertMaterial({color:0xf4f0ec,side:THREE.DoubleSide}));
+  cmesh.position.y=ceilH3d*MM;t3.scene.add(cmesh);
+  // Walls
+  for(let i=0;i<n;i++){
+    const a=vs[i],b=vs[(i+1)%n];
+    const key=`${fl.id}_${i}`;
+    const defH=fl.tiled?ceilH3d:0;
+    const tH=wallTileH[key]??defH;
+    buildWall3D(fl,i,a,b,tH);
+  }
+}
+
+function buildWall3D(fl,wi,a,b,tH){
+  const key=`${fl.id}_${wi}`;
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  const cM=ceilH3d*MM,tM=tH*MM;
+  const isSel=sel3d?.floorId===fl.id&&sel3d?.wallIdx===wi;
+  const selEmit=isSel?new THREE.Color(0x8fe3ff):new THREE.Color(0);
+  // Paint above tiles
+  if(cM-tM>0.005){
+    const m=new THREE.MeshLambertMaterial({color:isSel?0xe8f4f8:0xf0ece6,emissive:selEmit,emissiveIntensity:0.06,side:THREE.DoubleSide});
+    t3.scene.add(new THREE.Mesh(wallGeo3D(a.x,a.y,b.x,b.y,tM,cM),m));
+  }
+  // Tiled section (also makes wall selectable even if no tiles)
+  const geo=wallGeo3D(a.x,a.y,b.x,b.y,0,Math.max(tM,cM));
+  if(tM>0.005){
+    const fl2=fl;
+    const tex=tileTex3D(fl2.tileW||300,fl2.tileH||300,fl2.tileColor||'#e0d4c0',fl2.groutColor||'#c0b090',fl2.groutW||3);
+    tex.repeat.set(wLen/(fl2.tileW||300),tH/(fl2.tileH||300));
+    const tileGeo=wallGeo3D(a.x,a.y,b.x,b.y,0,tM);
+    const mat=new THREE.MeshLambertMaterial({map:tex,emissive:selEmit,emissiveIntensity:0.1,side:THREE.DoubleSide});
+    const mesh=new THREE.Mesh(tileGeo,mat);
+    mesh.receiveShadow=true;mesh.userData={type:'wall',floorId:fl.id,wallIdx:wi};
+    walls3d.push({mesh,floorId:fl.id,wallIdx:wi,key});t3.scene.add(mesh);
+  }
+  // Invisible hit plane for selection
+  const hitGeo=wallGeo3D(a.x,a.y,b.x,b.y,0,cM);
+  const hitMat=new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide});
+  const hitMesh=new THREE.Mesh(hitGeo,hitMat);
+  hitMesh.userData={type:'wall',floorId:fl.id,wallIdx:wi};
+  walls3d.push({mesh:hitMesh,floorId:fl.id,wallIdx:wi,key});t3.scene.add(hitMesh);
+}
+
+function buildFixtures3D(){
+  for(const o of objs){
+    if(o.type==='toilet')buildToilet3D(o);
+    else if(o.type==='vanity')buildVanity3D(o);
+    else if(o.type==='door')buildDoor3D(o);
+    else if(o.type==='window')buildWindow3D(o);
+    else if(o.type==='wall')buildWallFix3D(o);
+    else if(o.type==='drain')buildDrain3D(o);
+  }
+}
+
+function addBox(w,h,d,color,gx,gy,gz,ry=0,castShadow=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color}));
+  m.position.set(gx*MM,gy*MM,-gz*MM);m.rotation.y=ry;
+  if(castShadow)m.castShadow=true;m.receiveShadow=true;t3.scene.add(m);return m;
+}
+
+function buildToilet3D(o){
+  const ang=-o.angle*Math.PI/180;
+  const w=o.width||380,d=o.depth||680;
+  const g=new THREE.Group();
+  // Tank
+  const tk=new THREE.Mesh(new THREE.BoxGeometry(w*.9*MM,220*MM,200*MM),new THREE.MeshLambertMaterial({color:0xe8e8e0}));
+  tk.position.set(0,110*MM,0);g.add(tk);
+  // Bowl (use CylinderGeometry - available in r128)
+  const bowl=new THREE.Mesh(new THREE.CylinderGeometry(w*.45*MM,w*.4*MM,(d-200)*MM,16),new THREE.MeshLambertMaterial({color:0xf0f0e8}));
+  bowl.position.set(0,((d-200)/2)*MM,(d-200)*MM/2+100*MM);g.add(bowl);
+  g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
+  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+}
+
+function buildVanity3D(o){
+  const ang=-o.angle*Math.PI/180;
+  const w=o.width||900,d=o.depth||500,h=860;
+  const g=new THREE.Group();
+  // Cabinet body
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color:0xd8d0c8}));
+  cab.position.set(0,h*MM/2,d*MM/2);g.add(cab);
+  // Countertop
+  const top=new THREE.Mesh(new THREE.BoxGeometry(w*MM,30*MM,(d+20)*MM),new THREE.MeshLambertMaterial({color:0xc8c0b8}));
+  top.position.set(0,(h+15)*MM,d*MM/2);g.add(top);
+  // Basin
+  const sink=new THREE.Mesh(new THREE.CylinderGeometry(w*.22*MM,w*.2*MM,60*MM,12),new THREE.MeshLambertMaterial({color:0xf0f0f0}));
+  sink.position.set(0,(h+20)*MM,d*MM*.5);g.add(sink);
+  // Tap
+  const tap=new THREE.Mesh(new THREE.CylinderGeometry(8*MM,8*MM,120*MM,6),new THREE.MeshLambertMaterial({color:0xb0b0a0}));
+  tap.position.set(0,(h+80)*MM,d*MM*.5);g.add(tap);
+  g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
+  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+}
+
+function buildDoor3D(o){
+  const ang=-o.angle*Math.PI/180;
+  const w=o.width||900,h=2100,thick=40;
+  const g=new THREE.Group();
+  // Frame jambs
+  const jamb=new THREE.MeshLambertMaterial({color:0xa09070});
+  [[-w/2-50,0],[ w/2+50,0]].forEach(([x])=>{
+    const j=new THREE.Mesh(new THREE.BoxGeometry(50*MM,h*MM,thick*MM),jamb);
+    j.position.set((x)*MM,(h/2)*MM,0);g.add(j);
+  });
+  // Lintel
+  const lin=new THREE.Mesh(new THREE.BoxGeometry((w+100)*MM,60*MM,thick*MM),jamb);
+  lin.position.set(0,(h+30)*MM,0);g.add(lin);
+  // Door slab (partly open)
+  const slab=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,thick*0.5*MM),new THREE.MeshLambertMaterial({color:0xc8b890}));
+  slab.position.set(0,h*MM/2,thick*0.25*MM);
+  // Pivot at one edge
+  const pivot=new THREE.Group();pivot.position.set(-w*MM/2,0,0);
+  slab.position.x=w*MM/2;pivot.add(slab);pivot.rotation.y=-0.5;g.add(pivot);
+  g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
+  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+}
+
+function buildWindow3D(o){
+  const ang=-o.angle*Math.PI/180;
+  const w=o.width||900,h=1000,sillH=900,thick=120;
+  const g=new THREE.Group();
+  const mat=new THREE.MeshLambertMaterial({color:0xd0d8c8});
+  // Outer frame
+  [[0,sillH+h/2,0,w,h,thick],[0,sillH-30/2,0,w,30,thick*1.5],[0,sillH+h+30/2,0,w,30,thick*1.5],
+   [-w/2+30/2,sillH+h/2,0,30,h,thick*1.2],[w/2-30/2,sillH+h/2,0,30,h,thick*1.2]
+  ].forEach(([x,y,z,bw,bh,bd])=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(bw*MM,bh*MM,bd*MM),mat);
+    m.position.set(x*MM,y*MM,z*MM);g.add(m);
+  });
+  // Glass panes
+  const glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.45*MM,h*.9*MM,4*MM),new THREE.MeshLambertMaterial({color:0x88c0d8,transparent:true,opacity:0.35}));
+  glass.position.set(-w*0.25*MM,(sillH+h/2)*MM,0);g.add(glass);
+  const glass2=glass.clone();glass2.position.x=w*0.25*MM;g.add(glass2);
+  g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;}});
+  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+}
+
+function buildWallFix3D(o){
+  const ang=-o.angle*Math.PI/180;
+  const w=o.len||1000,d=o.thick||100,h=ceilH3d;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color:0x808898}));
+  m.castShadow=true;m.receiveShadow=true;
+  m.position.set((o.x+w/2)*MM,h*MM/2,-o.y*MM);m.rotation.y=ang;t3.scene.add(m);
+}
+
+function buildDrain3D(o){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(o.cw*0.4*MM,o.cw*0.4*MM,10*MM,12),new THREE.MeshLambertMaterial({color:0x707880}));
+  m.position.set(o.x*MM,5*MM,-o.y*MM);t3.scene.add(m);
+}
+
+function buildPipes3D(){
+  const showS=document.getElementById('show-supply')?.checked;
+  const showD=document.getElementById('show-drain')?.checked;
+  if(!showS&&!showD) return;
+  const ps=document.getElementById('pipe-style')?.value||'standard';
+  const cols={standard:{hot:0xcc2020,cold:0x2060cc,drain:0x606870},copper:{hot:0xb87333,cold:0xb87333,drain:0x707070},white:{hot:0xeeeef0,cold:0xeeeef0,drain:0xf0f0f0}};
+  const c=cols[ps];
+  for(const van of objs.filter(o=>o.type==='vanity')){
+    const ang=-van.angle*Math.PI/180;
+    const cx=van.x*MM,cz=-van.y*MM;
+    const d=van.depth||500;
+    const roughIn=0.45; // 450mm
+    const vanTop=0.86;
+    if(showS){
+      const offX=0.05*Math.cos(ang+Math.PI/2), offZ=0.05*Math.sin(ang+Math.PI/2);
+      // Hot: right of centre
+      addPipe3D(cx+offX,0,cz+offZ, cx+offX,ceilH3d*MM,cz+offZ, 0.016,c.hot);
+      addPipe3D(cx+offX,roughIn,cz+offZ, cx+offX+0.12,roughIn,cz+offZ*0, 0.012,c.hot); // stub to wall
+      // Cold: left of centre
+      addPipe3D(cx-offX,0,cz-offZ, cx-offX,ceilH3d*MM,cz-offZ, 0.016,c.cold);
+      addPipe3D(cx-offX,roughIn,cz-offZ, cx-offX-0.12,roughIn,cz-offZ*0, 0.012,c.cold);
+    }
+    if(showD){
+      addPipe3D(cx,0,cz, cx,vanTop,cz, 0.032,c.drain);
+    }
+  }
+}
+
+function addPipe3D(x1,y1,z1, x2,y2,z2, r, col){
+  const len=Math.hypot(x2-x1,y2-y1,z2-z1);if(len<0.001)return;
+  const geo=new THREE.CylinderGeometry(r,r,len,8,1);
+  const mat=new THREE.MeshLambertMaterial({color:col});
+  const m=new THREE.Mesh(geo,mat);m.castShadow=true;
+  m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
+  const dir=new THREE.Vector3(x2-x1,y2-y1,z2-z1).normalize();
+  const up=new THREE.Vector3(0,1,0);
+  const ax=new THREE.Vector3().crossVectors(up,dir).normalize();
+  const angle=Math.acos(Math.max(-1,Math.min(1,up.dot(dir))));
+  if(ax.lengthSq()>1e-6)m.setRotationFromAxisAngle(ax,angle);
+  t3.scene.add(m);
+}
+
+// ─ SELECTION ──────────────────────────────────
+function onClick3D(e){
+  if(!t3)return;
+  const cv=document.getElementById('cv3d');
+  const rect=cv.getBoundingClientRect();
+  const cx=e.clientX??e.pageX,cy=e.clientY??e.pageY;
+  const nx=((cx-rect.left)/rect.width)*2-1;
+  const ny=-((cy-rect.top)/rect.height)*2+1;
+  const ray=new THREE.Raycaster();
+  ray.setFromCamera({x:nx,y:ny},t3.cam);
+  const hits=ray.intersectObjects(walls3d.map(w=>w.mesh));
+  if(hits.length){
+    const ud=hits[0].object.userData;
+    sel3d={floorId:ud.floorId,wallIdx:ud.wallIdx};
+  } else sel3d=null;
+  show3DPanel();build3DScene();
+}
+
+function show3DPanel(){
+  const p=document.getElementById('wall3d-panel');if(!p)return;
+  if(sel3d){
+    const fl=objs.find(o=>o.id===sel3d.floorId);
+    const n=fl?.vertices?.length||0,a=fl?.vertices[sel3d.wallIdx],b=fl?.vertices[(sel3d.wallIdx+1)%n];
+    const wLen=a&&b?Math.round(Math.hypot(b.x-a.x,b.y-a.y)):'?';
+    document.getElementById('wall3d-title').textContent=`Wall ${sel3d.wallIdx+1} (${wLen}mm)`;
+    const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
+    const curH=wallTileH[key]??(fl?.tiled?ceilH3d:0);
+    document.getElementById('wall-tile-h').value=curH;
+    document.getElementById('wall-tile-h-sl').value=curH;
+    document.getElementById('wall-tile-h-sl').max=ceilH3d;
+    document.getElementById('wall-tile-h-lbl').textContent=curH;
+    p.style.display='';
+  }else p.style.display='none';
+}
+
+function setWallTileH(v){
+  if(!sel3d)return;wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]=v;
+  document.getElementById('wall-tile-h-sl').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;
+  build3DScene();
+}
+function setWallTileHSl(v){
+  if(!sel3d)return;wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]=v;
+  document.getElementById('wall-tile-h').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;
+  build3DScene();
+}
+function applyTileHAll(){
+  if(!sel3d)return;
+  const fl=objs.find(o=>o.id===sel3d.floorId);if(!fl)return;
+  const h=wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]??ceilH3d;
+  for(let i=0;i<fl.vertices.length;i++)wallTileH[`${fl.id}_${i}`]=h;
+  build3DScene();
+}
+function setCeilH(v){
+  ceilH3d=Math.max(1000,Math.min(6000,v));
+  if(t3?.ceilLight)t3.ceilLight.position.y=ceilH3d*MM-0.15;
+  document.getElementById('wall-tile-h-sl').max=ceilH3d;
+  build3DScene();
+}
+
+// ─ ANIMATION ──────────────────────────────────
+function animate3D(){raf3d=requestAnimationFrame(animate3D);if(t3)t3.ren.render(t3.scene,t3.cam);}
+function stop3D(){if(raf3d){cancelAnimationFrame(raf3d);raf3d=null;}}
+window.addEventListener('resize',()=>{if(document.getElementById('view3d-area')?.classList.contains('show'))resize3D();});
+
 </script>
 </body>
 </html>
