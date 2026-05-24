@@ -976,18 +976,20 @@ function drawToilet(o){
   ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
   if(sel){ctx.shadowColor=ac+'40';ctx.shadowBlur=8;}
   const fill=sel?getCSSVar('sf3'):'#e8e8e8',stroke=sel?ac:'#888';
+  // Origin (0,0) = tank back touching wall; body extends in +y direction into room
+  const tkW=w*.9,tkD=d*.28;
   // Tank
   ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
-  const tkW=w*.9,tkD=d*.28;
-  ctx.fillRect(-tkW/2,-d/2,tkW,tkD);ctx.strokeRect(-tkW/2,-d/2,tkW,tkD);
-  // Bowl outer ellipse
-  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w/2,d*.37,0,0,Math.PI*2);
+  ctx.fillRect(-tkW/2,0,tkW,tkD);ctx.strokeRect(-tkW/2,0,tkW,tkD);
+  // Bowl — centred on x=0, positioned after tank
+  const bowlCY=tkD+d*.37;
+  ctx.beginPath();ctx.ellipse(0,bowlCY,w/2,d*.37,0,0,Math.PI*2);
   ctx.fillStyle=fill;ctx.fill();ctx.stroke();
-  // Bowl seat
-  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w*.43,d*.3,0,0,Math.PI*2);
+  // Seat ring
+  ctx.beginPath();ctx.ellipse(0,bowlCY,w*.43,d*.3,0,0,Math.PI*2);
   ctx.strokeStyle=stroke+'80';ctx.lineWidth=1;ctx.stroke();
-  // Bowl water
-  ctx.beginPath();ctx.ellipse(0,-d/2+tkD+d*.37,w*.32,d*.22,0,0,Math.PI*2);
+  // Water
+  ctx.beginPath();ctx.ellipse(0,bowlCY,w*.32,d*.22,0,0,Math.PI*2);
   ctx.fillStyle='rgba(100,160,200,.25)';ctx.fill();
   ctx.shadowBlur=0;ctx.restore();
 }
@@ -998,29 +1000,17 @@ function drawVanity(o){
   ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(ang);
   if(sel){ctx.shadowColor=ac+'40';ctx.shadowBlur=8;}
   const fill=sel?getCSSVar('sf3'):'#d8d4c8',stroke=sel?ac:'#888';
-  if(o.shape==='corner-l'||o.shape==='corner-r'){
-    const w2=o.width2*zoom,d2=o.depth2*zoom;
-    const sign=o.shape==='corner-l'?1:-1;
-    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(w,0);ctx.lineTo(w,d);ctx.lineTo(sign>0?w2:w-w2+w,d);ctx.lineTo(sign>0?w2:w-w2+w,d+d2);ctx.lineTo(sign>0?0:w-w,d+d2);ctx.lineTo(sign>0?0:w-w,0);ctx.closePath();
-    // simpler L: main rect + side rect
-    ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
-    // Main rect
-    ctx.fillRect(0,-d,w,d);ctx.strokeRect(0,-d,w,d);
-    // Side wing
-    if(o.shape==='corner-l')ctx.fillRect(0,-d-d2,w2,d2),ctx.strokeRect(0,-d-d2,w2,d2);
-    else ctx.fillRect(w-w2,-d-d2,w2,d2),ctx.strokeRect(w-w2,-d-d2,w2,d2);
-  }else{
-    ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
-    ctx.fillRect(0,-d,w,d);ctx.strokeRect(0,-d,w,d);
-  }
+  ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=sel?2:1.5;
+  // Body: origin at wall-contact point (0,0), extends +x along wall, +y into room
+  ctx.fillRect(-w/2,0,w,d);ctx.strokeRect(-w/2,0,w,d);
   // Sink bowl(s)
   ctx.fillStyle='rgba(100,160,200,.25)';ctx.strokeStyle=stroke+'80';ctx.lineWidth=1;
   const sinkR=Math.min(w,d)*.22;
   if(o.shape==='double-sink'){
-    ctx.beginPath();ctx.ellipse(w*.25,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.beginPath();ctx.ellipse(w*.75,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(-w/4,d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(w/4,d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
   }else{
-    ctx.beginPath();ctx.ellipse(w/2,-d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(0,d/2,sinkR,sinkR*.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
   }
   ctx.shadowBlur=0;ctx.restore();
 }
@@ -1078,7 +1068,7 @@ function drawFixturePrev(){
   // Preview toilet offset
   let drawPos={...pos};
   if(pFixture.type==='toilet'&&ws){const perpRad=(baseAng+90)*Math.PI/180;const depth=(pFixture.depth||680)/2;drawPos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};}
-  if(pFixture.type==='vanity'&&ws){const perpRad=(baseAng+90)*Math.PI/180;const depth=pFixture.depth||500;drawPos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};}
+
   const sp=w2s(drawPos.x,drawPos.y);
   ctx.globalAlpha=.7;
   const tmp={...pFixture,x:drawPos.x,y:drawPos.y,angle:((baseAng%360)+360)%360,id:-1};
@@ -1141,12 +1131,22 @@ function hitTest(w){
   // Box-based objects (drain, toilet, vanity)
   for(let i=objs.length-1;i>=0;i--){
     const o=objs[i];
-    if(o.type==='drain'||o.type==='toilet'||o.type==='vanity'){
+    if(o.type==='drain'){
       const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang);
-      const w2=o.type==='drain'?o.cw/2:(o.width||400)/2;
-      const h2=o.type==='drain'?o.ch/2:(o.depth||600)/2;
       const rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;
-      if(Math.abs(rx)<w2+R&&Math.abs(ry)<h2+R)return o.id;
+      if(Math.abs(rx)<o.cw/2+R&&Math.abs(ry)<o.ch/2+R)return o.id;
+    }
+    if(o.type==='toilet'){
+      const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang);
+      const rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;
+      const hw=(o.width||380)/2,d=o.depth||680;
+      if(Math.abs(rx)<hw+R&&ry>-R&&ry<d+R)return o.id;
+    }
+    if(o.type==='vanity'){
+      const ang=(o.angle||0)*Math.PI/180,cos=Math.cos(-ang),sin=Math.sin(-ang);
+      const rx=(w.x-o.x)*cos-(w.y-o.y)*sin,ry=(w.x-o.x)*sin+(w.y-o.y)*cos;
+      const hw=(o.width||900)/2,d=o.depth||500;
+      if(Math.abs(rx)<hw+R&&ry>-R&&ry<d+R)return o.id;
     }
   }
   // Floors
@@ -1345,11 +1345,7 @@ function placeObject(sp){
       const depth=(pFixture.depth||680)/2;
       pos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};
     }
-    if(pFixture.type==='vanity'&&ws){
-      const perpRad=(baseAng+90)*Math.PI/180;
-      const depth=pFixture.depth||500;
-      pos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};
-    }
+
     const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
     const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
     const fx={...pFixture,id:nid++,x:pos.x,y:pos.y,angle:((baseAng%360)+360)%360,name:`${typeLabel[pFixture.type]} ${typeCount}`};
@@ -1372,8 +1368,8 @@ function handleMove(sp,isTouch){
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
     if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
     if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='toilet'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=(o.depth||680)/2;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=o.depth||500;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=(o.depth||680)/2;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='vanity'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='door'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
@@ -1703,12 +1699,9 @@ function panelHtml(){
     <div class="row"><label class="lbl">Shape</label>
       <select class="inp" onchange="sp(${o.id},'shape',this.value)">
         <option value="rect"${o.shape==='rect'?' selected':''}>Rectangle</option>
-        <option value="corner-l"${o.shape==='corner-l'?' selected':''}>Corner (left wing)</option>
-        <option value="corner-r"${o.shape==='corner-r'?' selected':''}>Corner (right wing)</option>
         <option value="double-sink"${o.shape==='double-sink'?' selected':''}>Double Sink</option>
       </select></div>
-    ${(o.shape==='corner-l'||o.shape==='corner-r')?`<div class="dual"><div class="row"><label class="lbl">Wing W (mm)</label><input class="inp" type="number" value="${o.width2||600}" min="200" inputmode="numeric" onchange="sp(${o.id},'width2',+this.value)"></div>
-    <div class="row"><label class="lbl">Wing D (mm)</label><input class="inp" type="number" value="${o.depth2||400}" min="200" inputmode="numeric" onchange="sp(${o.id},'depth2',+this.value)"></div></div>`:''}
+
     <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
     <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
     </div><div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
@@ -1788,7 +1781,7 @@ function applyScreenOffset(sid){
   // Offset toilet/vanity from wall using perpendicular direction
   const effAng=sc._manualAngle?sc.angle:autoAng;
   if(sc.type==='toilet'){const perpRad=(effAng+90)*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(perpRad)*dep;sc.y+=Math.sin(perpRad)*dep;}
-  if(sc.type==='vanity'){const perpRad=(effAng+90)*Math.PI/180;const dep=sc.depth||500;sc.x+=Math.cos(perpRad)*dep;sc.y+=Math.sin(perpRad)*dep;}
+
   updatePanel();render();
 }
 
@@ -1834,16 +1827,10 @@ const FIXTURE_CONFIGS={
     <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="900" min="300" inputmode="numeric"></div>
     <div class="mfld"><label class="mlbl">Depth (mm)</label><input class="minp" id="fix-d" type="number" value="500" min="200" inputmode="numeric"></div></div>
     <div class="mfld"><label class="mlbl">Shape</label>
-      <select class="minp" id="fix-shape" onchange="toggleFixShape(this.value)">
+      <select class="minp" id="fix-shape">
         <option value="rect">Rectangle</option>
-        <option value="corner-l">Corner (left wing)</option>
-        <option value="corner-r">Corner (right wing)</option>
         <option value="double-sink">Double Sink</option>
       </select>
-    </div>
-    <div id="fix-corner-fields" style="display:none">
-      <div class="mrow"><div class="mfld"><label class="mlbl">Wing Width (mm)</label><input class="minp" id="fix-w2" type="number" value="600" min="200" inputmode="numeric"></div>
-      <div class="mfld"><label class="mlbl">Wing Depth (mm)</label><input class="minp" id="fix-d2" type="number" value="400" min="200" inputmode="numeric"></div></div>
     </div>`},
   door:{title:'Add Door',hint:'Snap to a wall. Adjust swing direction in Properties.',fields:`
     <div class="mrow"><div class="mfld"><label class="mlbl">Width (mm)</label><input class="minp" id="fix-w" type="number" value="900" min="500" inputmode="numeric"></div>
@@ -1864,13 +1851,13 @@ function openFixtureModal(type){
   document.getElementById('fix-hint').textContent=cfg.hint;
   document.getElementById('fixture-modal').classList.add('show');
 }
-function toggleFixShape(v){const cf=document.getElementById('fix-corner-fields');if(cf)cf.style.display=(v==='corner-l'||v==='corner-r')?'block':'none';}
+
 function confirmFixtureModal(){
   const type=currentFixType;
   const w=+(document.getElementById('fix-w')?.value)||900;
   const d=+(document.getElementById('fix-d')?.value)||500;
   if(type==='toilet')pFixture={type,width:w,depth:d,angle:0};
-  else if(type==='vanity'){const shape=document.getElementById('fix-shape')?.value||'rect';const w2=+(document.getElementById('fix-w2')?.value)||600;const d2=+(document.getElementById('fix-d2')?.value)||400;pFixture={type,width:w,depth:d,shape,width2:w2,depth2:d2,angle:0};}
+  else if(type==='vanity'){const shape=document.getElementById('fix-shape')?.value||'rect';pFixture={type,width:w,depth:d,shape,angle:0};}
   else if(type==='door'){const swing=document.getElementById('fix-swing')?.value||'left';const openAngle=+(document.getElementById('fix-ang')?.value)||90;pFixture={type,width:w,swing,openAngle,angle:0};}
   else if(type==='window')pFixture={type,width:w,sillDepth:d,angle:0};
   closeFixModal('fixture-modal');
