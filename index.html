@@ -476,6 +476,25 @@ select.inp{cursor:pointer}
   <div class="mact"><button class="btn btn-ol" onclick="closeFixModal('fixture-modal')">Cancel</button><button class="btn btn-ac" onclick="confirmFixtureModal()">Place →</button></div>
 </div></div>
 
+<!-- OFFSET DIMENSION MODAL -->
+<div class="movl" id="offset-dim-modal"><div class="modal">
+  <h2 id="odm-title">Set Offset</h2>
+  <div class="mfld" id="odm-corner-field" style="display:none">
+    <label class="mlbl">Which corner of the vanity?</label>
+    <select class="minp" id="odm-vanity-corner">
+      <option value="left">Left corner</option>
+      <option value="right">Right corner</option>
+    </select>
+  </div>
+  <div class="mfld"><label class="mlbl" id="odm-lbl">Offset from corner (mm)</label>
+    <input class="minp" id="odm-val" type="number" value="0" min="0" step="5" inputmode="numeric" style="font-size:22px;padding:10px 12px">
+  </div>
+  <p class="mhint" id="odm-hint"></p>
+  <div class="mact">
+    <button class="btn btn-ol" onclick="cancelOffsetMode()">Cancel</button>
+    <button class="btn btn-ac" onclick="confirmOffset()">Apply</button>
+  </div>
+</div></div>
 <!-- CONSTRAINT INPUT MODAL -->
 <div class="movl" id="con-movl"><div class="modal">
   <h2 id="con-title">Set Length</h2>
@@ -679,6 +698,9 @@ let edgeConstraints=[];
 let pendingConstraint=null,angleEdge1=null,conSecondEdge=null,conInputMode=null;
 let editingFloorId=null,editSelVert=null,editSelEdge=null,editDragVert=null;
 let pDrain=null,pScreen=null,pFixture=null,settingOrigin=null;
+// Offset-from-corner workflow state
+let offsetMode=null; // {objId, step:'pickCorner'|'pickVanityCorner'|'enterDim', floorId, cornerVert, wallIdx}
+let dimAnnotations=[]; // [{id, objId, fromVert, toX, toY, value, type}]
 let panning=false,panSt={x:0,y:0},panO={x:0,y:0};
 let dragging=false,dragOff={x:0,y:0},dragOriginId=null;
 let dragPending=false,dragPendingSp=null;
@@ -733,7 +755,36 @@ function snapPt(raw){
 }
 function snapObj(raw){const doW=document.getElementById('snw').checked,snapInc=+document.getElementById('snapmm')?.value||5,do5=snapInc>0,RNG=1200/zoom;let bestD=10/zoom,bestPt=null;if(doW)for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length],wdx=b.x-a.x,wdy=b.y-a.y,wl=Math.hypot(wdx,wdy);if(!wl)continue;const ux=wdx/wl,uy=wdy/wl,nx=-uy,ny=ux;const rx=raw.x-a.x,ry=raw.y-a.y,al=rx*ux+ry*uy,pe=rx*nx+ry*ny;if(Math.abs(pe)>RNG)continue;const sa=do5?Math.round(al/snapInc)*snapInc:al,sp=do5?Math.round(pe/snapInc)*snapInc:pe;const c={x:a.x+sa*ux+sp*nx,y:a.y+sa*uy+sp*ny};const d=dist(raw,c);if(d<bestD){bestD=d;bestPt=c;}}}if(bestPt)return bestPt;if(do5)return{x:Math.round(raw.x/snapInc)*snapInc,y:Math.round(raw.y/snapInc)*snapInc};return{...raw};}
 function snapOriginPt(raw,fid){const fl=objs.find(o=>o.id===fid);if(!fl)return{...raw};const doW=document.getElementById('snw').checked,snapInc=+document.getElementById('snapmm')?.value||5,do5=snapInc>0,R=20/zoom;if(doW){for(const v of fl.vertices)if(dist(raw,v)<R)return{...v};const vs=fl.vertices;for(let i=0;i<vs.length;i++){const{pt}=closestOnSeg(raw,vs[i],vs[(i+1)%vs.length]);if(dist(raw,pt)<R)return pt;}}if(do5)return{x:Math.round(raw.x/snapInc)*snapInc,y:Math.round(raw.y/snapInc)*snapInc};return{...raw};}
-function findWallSnap(pos){const R=30/zoom;let best=null,bestD=R;for(const o of objs){if(o.type!=='floor'||o._editing)continue;const vs=o.vertices;for(let i=0;i<vs.length;i++){const a=vs[i],b=vs[(i+1)%vs.length];const{pt}=closestOnSeg(pos,a,b);const d=dist(pos,pt);if(d<bestD){bestD=d;best={pt,wallAngle:Math.atan2(b.y-a.y,b.x-a.x),a,b};}}}return best;}
+function findWallSnap(pos){
+  const R=30/zoom;let best=null,bestD=R;
+  for(const o of objs){
+    if(o.type!=='floor'||o._editing)continue;
+    const vs=o.vertices,n=vs.length;
+    // centroid for winding check
+    const cx=vs.reduce((s,v)=>s+v.x,0)/n,cy=vs.reduce((s,v)=>s+v.y,0)/n;
+    for(let i=0;i<n;i++){
+      const a=vs[i],b=vs[(i+1)%n];
+      const{pt}=closestOnSeg(pos,a,b);
+      const d=dist(pos,pt);
+      if(d<bestD){
+        bestD=d;
+        const rawAng=Math.atan2(b.y-a.y,b.x-a.x);
+        // perpendicular to the wall (one of two directions)
+        const nx=-Math.sin(rawAng),ny=Math.cos(rawAng);
+        // check if it points toward centroid (inward) — if so, use it; else flip
+        const toCx=cx-pt.x,toCy=cy-pt.y;
+        const inward=(toCx*nx+toCy*ny)>0?1:-1;
+        // wallAngle: we want the fixture to snap so that its +y points INWARD
+        // fixture angByType uses wallParallel (=rawAng) for toilet/vanity
+        // then places body in +y from origin; so wallAngle already works IF normals are inward
+        // Return rawAng always — let caller know the inward perpendicular via inwardPerp
+        const inwardPerp=rawAng+inward*Math.PI/2;
+        best={pt,wallAngle:rawAng,inwardPerp,a,b,floorId:o.id};
+      }
+    }
+  }
+  return best;
+}
 
 // ═══════════════════════════════════════════════
 // CONSTRAINTS — with iterative propagation
@@ -860,6 +911,12 @@ function _render(){
   if((cH||cV||keys.has('Shift'))&&drawPhase==='drawing'&&dv.length>0)drawConLine();
   if(pendingConstraint&&drawPhase==='closed')drawPendingHint();
   drawScaleBar();
+  // Highlight floor vertices when picking a corner for offset
+  if(offsetMode?.step==='pickCorner'){
+    const fl=objs.find(o=>o.id===offsetMode.floorId);
+    if(fl){const ac=getAC();fl.vertices.forEach((v,i)=>{const sp2=w2s(v.x,v.y);ctx.beginPath();ctx.arc(sp2.x,sp2.y,8,0,Math.PI*2);ctx.fillStyle=ac+'aa';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();});}
+  }
+  drawDimAnnotations();
   // Live area display while drawing
   if(drawPhase==='drawing'&&dv.length>=3){
     const area=polyArea([...dv,mw])/1e6;
@@ -1336,7 +1393,7 @@ function placeObject(sp){
     const wallParallel=ws?ws.wallAngle*180/Math.PI:0;
     // Wall-perpendicular angle (for wall/screen/toilet/vanity which stick OUT from wall)
     const wallPerp=wallParallel+90;
-    const angByType={wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
+    const angByType={wall:wallPerp,toilet:ws?ws.inwardPerp*180/Math.PI-90:wallParallel,vanity:ws?ws.inwardPerp*180/Math.PI-90:wallParallel,door:wallParallel,window:wallParallel};
     const baseAng=angByType[pFixture.type]??wallPerp;
     let pos=ws?{...ws.pt}:snapObj(raw);
     // Toilet/vanity: origin (0,0) IS the wall contact point — no additional offset needed on placement
@@ -1363,8 +1420,8 @@ function handleMove(sp,isTouch){
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
     if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
     if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='toilet'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='vanity'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='vanity'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){const inA=ws.inwardPerp*180/Math.PI-90;o.angle=((inA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='door'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
   }
@@ -1377,6 +1434,7 @@ function handleMove(sp,isTouch){
 function handleDown(sp,isTouch){
   const raw=s2w(sp.x,sp.y);
   if(settingOrigin!=null){const fl=objs.find(o=>o.id===settingOrigin);if(fl)fl.tileOrigin=snapOriginPt(raw,settingOrigin);settingOrigin=null;cv.style.cursor='default';updatePanel();render();return;}
+  if(offsetMode){handleOffsetClick(raw);return;}
   if(tool==='draw'){
     if(drawPhase==='closed'){
       if(pendingConstraint){const ei=hitDrawEdge(raw);if(ei!==null)applyEdgeConstraintDirect(pendingConstraint,ei);pendingConstraint=null;updateConUI();render();return;}
@@ -1408,6 +1466,8 @@ function handleUp(isTouch){
 }
 function handleDbl(sp){
   const raw=s2w(sp.x,sp.y);
+  // Check for dimension annotation double-click first
+  const da=hitDimAnnotation(raw);if(da){editDimAnnotation(da);return;}
   if(tool!=='draw'){const hid=hitTest(raw);if(hid!==null){const o=objs.find(o=>o.id===hid);if(o?.type==='floor'){enterFloorEdit(o.id);return;}}}
   if(tool==='draw'&&drawPhase==='drawing'&&dv.length>2){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();}
 }
@@ -1552,7 +1612,7 @@ function deleteSelected(){
     if(editSelVert!==null&&dv.length>3){edgeConstraints=edgeConstraints.filter(c=>c.edgeIdx!==editSelVert&&c.edgeIdx!==(editSelVert-1+dv.length)%dv.length).map(c=>({...c,edgeIdx:c.edgeIdx>editSelVert?c.edgeIdx-1:c.edgeIdx}));dv.splice(editSelVert,1);editSelVert=null;render();return;}
     if(editSelEdge!==null){edgeConstraints=edgeConstraints.filter(c=>c.edgeIdx!==editSelEdge);const brk=(editSelEdge+1)%dv.length;dv=[...dv.slice(brk),...dv.slice(0,brk)];drawPhase='drawing';editSelEdge=null;pendingConstraint=null;updateConUI();updateStatus();render();return;}return;
   }
-  if(selId===null)return;saveUndo();objs.splice(objs.findIndex(o=>o.id===selId),1);selId=null;updatePanel();closeSheet();render();
+  if(selId===null)return;saveUndo();objs.splice(objs.findIndex(o=>o.id===selId),1);dimAnnotations=dimAnnotations.filter(da=>da.objId!==selId);selId=null;updatePanel();closeSheet();render();
 }
 
 // ═══════════════════════════════════════════════
@@ -1686,8 +1746,9 @@ function panelHtml(){
     <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
     </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
     <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
-    <div class="row"><label class="lbl">Offset from back centre (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??0}" min="0" step="5" inputmode="numeric"></div>
-    <button class="btn btn-ac" onclick="applyToiletOffset(${o.id})">Apply Offset</button></div>`:''}<div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Toilet</button></div>`;
+    </div>`:''}
+    <button class="btn btn-ac" onclick="startOffsetMode(${o.id})" style="margin-bottom:6px">⊞ Offset from Corner</button>
+    <div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Toilet</button></div>`;
     return{icon:'◯',cls:'dr',title:o.name||'Toilet',sub:'toilet',body};
   }
   if(o.type==='vanity'){
@@ -1712,7 +1773,8 @@ function panelHtml(){
         <option value="centre"${o.refCorner==='centre'?' selected':''}>Centre</option>
       </select></div>
     <div class="row"><label class="lbl">Offset (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??0}" min="0" step="5" inputmode="numeric"></div>
-    <button class="btn btn-ac" onclick="applyVanityOffset(${o.id})">Apply Offset</button></div>`:''}<div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
+    <button class="btn btn-ac" onclick="startOffsetMode(${o.id})" style="margin-bottom:6px">⊞ Offset from Wall Corner</button>
+    <div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
     return{icon:'□',cls:'fl',title:o.name||'Vanity',sub:'vanity',body};
   }
   if(o.type==='door'){
@@ -1779,7 +1841,13 @@ function applyScreenOffset(sid){
   const pos={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
   const wallParallel=wAng*180/Math.PI;
   const wallPerp=wallParallel+90;
-  const angByType={screen:wallPerp,wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
+  const wallInward=Math.atan2(b.y-a.y,b.x-a.x);
+  const n2x=-Math.sin(wallInward),n2y=Math.cos(wallInward);
+  const cxF=v.reduce((s,vv)=>s+vv.x,0)/v.length,cyF=v.reduce((s,vv)=>s+vv.y,0)/v.length;
+  const wallPtM={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  const inSign=(cxF-wallPtM.x)*n2x+(cyF-wallPtM.y)*n2y>0?1:-1;
+  const inwardAngOffset=wallInward*180/Math.PI+inSign*90;
+  const angByType={screen:wallPerp,wall:wallPerp,toilet:inwardAngOffset-90,vanity:inwardAngOffset-90,door:wallParallel,window:wallParallel};
   const autoAng=((angByType[sc.type]??wallPerp)%360+360)%360;
   saveUndo();
   sc.x=pos.x;sc.y=pos.y;
@@ -1839,6 +1907,173 @@ function applyVanityOffset(vid){
   o.refWall=wi;o.refOffset=d;o.refCorner=corner;
   updatePanel();render();
 }
+  if(!o._manualAngle)o.angle=ang;
+  o.refWall=wi;o.refOffset=d;o.refCorner=corner;
+  updatePanel();render();
+}
+
+// ─ OFFSET MODE ────────────────────────────────
+function startOffsetMode(objId){
+  const o=objs.find(ob=>ob.id===objId);if(!o)return;
+  const fl=getFloorForObj(o);if(!fl){alert('Place the object near a floor first.');return;}
+  offsetMode={objId,step:'pickCorner',floorId:fl.id,cornerVert:null,wallIdx:null};
+  closeSheet();
+  cv.style.cursor='crosshair';
+  document.getElementById('cbadge').textContent='Click a wall corner on the floor to offset from';
+  document.getElementById('cbadge').style.display='block';
+  render();
+}
+function cancelOffsetMode(){
+  offsetMode=null;cv.style.cursor='default';
+  document.getElementById('offset-dim-modal').classList.remove('show');
+  document.getElementById('cbadge').style.display='none';
+  render();
+}
+function handleOffsetClick(pos){
+  if(!offsetMode)return false;
+  const fl=objs.find(o=>o.id===offsetMode.floorId);if(!fl)return true;
+  if(offsetMode.step==='pickCorner'){
+    // Find closest vertex on this floor
+    const R=20/zoom;let best=null,bestD=R;
+    for(let i=0;i<fl.vertices.length;i++){
+      const d=dist(pos,fl.vertices[i]);
+      if(d<bestD){bestD=d;best=i;}
+    }
+    if(best===null){return true;} // clicked but not near vertex, stay in mode
+    offsetMode.cornerVert=best;
+    // Determine which wall this corner belongs to (the wall starting at this vertex)
+    offsetMode.wallIdx=best;
+    const o=objs.find(ob=>ob.id===offsetMode.objId);
+    // Open dimension modal
+    const isVanity=o?.type==='vanity';
+    document.getElementById('odm-title').textContent=isVanity?'Set Vanity Offset':'Set Toilet Offset';
+    document.getElementById('odm-corner-field').style.display=isVanity?'block':'none';
+    document.getElementById('odm-lbl').textContent=isVanity?'Offset of vanity corner from wall corner (mm)':'Offset of toilet back-centre from wall corner (mm)';
+    document.getElementById('odm-hint').textContent='The object will move along the wall from the selected corner.';
+    document.getElementById('odm-val').value='0';
+    document.getElementById('offset-dim-modal').classList.add('show');
+    setTimeout(()=>document.getElementById('odm-val').focus(),80);
+    offsetMode.step='enterDim';
+    document.getElementById('cbadge').style.display='none';
+  }
+  return true;
+}
+function confirmOffset(){
+  if(!offsetMode)return;
+  const o=objs.find(ob=>ob.id===offsetMode.objId);if(!o)return;
+  const fl=objs.find(ob=>ob.id===offsetMode.floorId);if(!fl)return;
+  const d=+document.getElementById('odm-val').value||0;
+  const vi=offsetMode.cornerVert;
+  const n=fl.vertices.length;
+  const a=fl.vertices[vi],b=fl.vertices[(vi+1)%n];
+  const wAng=Math.atan2(b.y-a.y,b.x-a.x);
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  // Inward normal for correct angle
+  const nx=-Math.sin(wAng),ny=Math.cos(wAng);
+  const cx=fl.vertices.reduce((s,v)=>s+v.x,0)/n,cy=fl.vertices.reduce((s,v)=>s+v.y,0)/n;
+  const toCx=cx-a.x,toCy=cy-a.y;
+  const inSign=(toCx*nx+toCy*ny)>0?1:-1;
+  const correctAng=wAng*180/Math.PI+inSign*90-90;
+  // Position along wall
+  const t=wLen>0?Math.min(d,wLen)/wLen:0;
+  const wallPt={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  saveUndo();
+  if(o.type==='toilet'){
+    o.x=wallPt.x;o.y=wallPt.y;
+    if(!o._manualAngle)o.angle=((correctAng%360)+360)%360;
+  } else if(o.type==='vanity'){
+    const corner=document.getElementById('odm-vanity-corner')?.value||'left';
+    const rad=o._manualAngle?o.angle*Math.PI/180:correctAng*Math.PI/180;
+    const hw=(o.width||900)/2;
+    let ox=wallPt.x,oy=wallPt.y;
+    if(corner==='right'){ox-=Math.cos(wAng)*(o.width||900);oy-=Math.sin(wAng)*(o.width||900);}
+    o.x=ox;o.y=oy;
+    if(!o._manualAngle)o.angle=((correctAng%360)+360)%360;
+    o.refCorner=corner;
+  }
+  // Store dimension annotation
+  dimAnnotations=dimAnnotations.filter(da=>da.objId!==o.id);
+  dimAnnotations.push({id:nid++,objId:o.id,fromVert:vi,wallIdx:vi,floorId:fl.id,value:d,type:o.type});
+  document.getElementById('offset-dim-modal').classList.remove('show');
+  offsetMode=null;cv.style.cursor='default';
+  selObjOpen(o.id);render();
+}
+
+// Draw dimension annotations on canvas
+function drawDimAnnotations(){
+  for(const da of dimAnnotations){
+    const fl=objs.find(o=>o.id===da.floorId);if(!fl)continue;
+    const n=fl.vertices.length,a=fl.vertices[da.wallIdx],b=fl.vertices[(da.wallIdx+1)%n];
+    const wAng=Math.atan2(b.y-a.y,b.x-a.x),wLen=Math.hypot(b.x-a.x,b.y-a.y);
+    const t=wLen>0?Math.min(da.value,wLen)/wLen:0;
+    const ep={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+    const sa=w2s(a.x,a.y),sep=w2s(ep.x,ep.y);
+    const nx=-Math.sin(wAng)*16,ny=Math.cos(wAng)*16;
+    // Dimension line offset from wall
+    const nx2=-Math.sin(wAng),ny2=Math.cos(wAng);
+    const off=22; // px from wall
+    const ac=getAC();
+    ctx.save();
+    ctx.strokeStyle=ac+'cc';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    // extension lines
+    ctx.beginPath();ctx.moveTo(sa.x-nx2*8,sa.y-ny2*8);ctx.lineTo(sa.x-nx2*off,sa.y-ny2*off);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sep.x-nx2*8,sep.y-ny2*8);ctx.lineTo(sep.x-nx2*off,sep.y-ny2*off);ctx.stroke();
+    // dimension line
+    ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(sa.x-nx2*off,sa.y-ny2*off);ctx.lineTo(sep.x-nx2*off,sep.y-ny2*off);ctx.stroke();
+    // arrowheads
+    const dx=sep.x-sa.x,dy=sep.y-sa.y,al=Math.hypot(dx,dy);
+    if(al>4){const ux=dx/al,uy=dy/al;
+      ctx.beginPath();ctx.moveTo(sa.x-nx2*off,sa.y-ny2*off);ctx.lineTo(sa.x-nx2*off+ux*5-uy*3,sa.y-ny2*off+uy*5+ux*3);ctx.moveTo(sa.x-nx2*off,sa.y-ny2*off);ctx.lineTo(sa.x-nx2*off+ux*5+uy*3,sa.y-ny2*off+uy*5-ux*3);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(sep.x-nx2*off,sep.y-ny2*off);ctx.lineTo(sep.x-nx2*off-ux*5-uy*3,sep.y-ny2*off-uy*5+ux*3);ctx.moveTo(sep.x-nx2*off,sep.y-ny2*off);ctx.lineTo(sep.x-nx2*off-ux*5+uy*3,sep.y-ny2*off-uy*5-ux*3);ctx.stroke();}
+    // label
+    const mx=(sa.x+sep.x)/2-nx2*off,my=(sa.y+sep.y)/2-ny2*off;
+    const lbl=da.value>=1000?(da.value/1000).toFixed(2)+'m':Math.round(da.value)+'mm';
+    ctx.font='700 10px JetBrains Mono,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    const tw=ctx.measureText(lbl).width+8;
+    ctx.fillStyle='rgba(0,0,0,.85)';ctx.fillRect(mx-tw/2,my-7,tw,14);
+    ctx.fillStyle=ac;ctx.fillText(lbl,mx,my);
+    ctx.restore();
+  }
+}
+
+// Hit test for double-click on dimension annotation
+function hitDimAnnotation(pos){
+  for(const da of dimAnnotations){
+    const fl=objs.find(o=>o.id===da.floorId);if(!fl)continue;
+    const n=fl.vertices.length,a=fl.vertices[da.wallIdx],b=fl.vertices[(da.wallIdx+1)%n];
+    const wAng=Math.atan2(b.y-a.y,b.x-a.x),wLen=Math.hypot(b.x-a.x,b.y-a.y);
+    const t=wLen>0?Math.min(da.value,wLen)/wLen:0;
+    const ep={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+    const sa=w2s(a.x,a.y),sep=w2s(ep.x,ep.y);
+    const nx=-Math.sin(wAng),ny=Math.cos(wAng);
+    const mx=(sa.x+sep.x)/2-nx*22,my=(sa.y+sep.y)/2-ny*22;
+    const sp=w2s(pos.x,pos.y);
+    if(Math.hypot(sp.x-mx,sp.y-my)<20)return da;
+  }
+  return null;
+}
+function editDimAnnotation(da){
+  const newVal=prompt('Offset (mm):',String(da.value));
+  if(newVal===null)return;
+  const v=+newVal;if(isNaN(v)||v<0)return;
+  saveUndo();da.value=v;
+  // Move object to new position
+  const fl=objs.find(o=>o.id===da.floorId);const o=objs.find(ob=>ob.id===da.objId);
+  if(!fl||!o)return;
+  const n=fl.vertices.length,a=fl.vertices[da.wallIdx],b=fl.vertices[(da.wallIdx+1)%n];
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  const t=wLen>0?Math.min(v,wLen)/wLen:0;
+  const wallPt={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  if(o.type==='toilet'){o.x=wallPt.x;o.y=wallPt.y;}
+  else if(o.type==='vanity'){
+    const wAng=Math.atan2(b.y-a.y,b.x-a.x);
+    if(da.refCorner==='right'){o.x=wallPt.x-Math.cos(wAng)*(o.width||900);o.y=wallPt.y-Math.sin(wAng)*(o.width||900);}
+    else{o.x=wallPt.x;o.y=wallPt.y;}
+  }
+  render();
+}
+
 // ═══════════════════════════════════════════════
 function openDrainModal(){document.getElementById('dm').classList.add('show');}
 function closeDM(){document.getElementById('dm').classList.remove('show');}
@@ -1924,7 +2159,7 @@ function confirmFixtureModal(){
 document.addEventListener('keydown',e=>{
   keys.add(e.key);
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='Escape'){if(document.getElementById('settings-movl').classList.contains('show')){closeSettings();return;}if(document.getElementById('con-movl').classList.contains('show')){cancelConInput();return;}if(drawPhase!=='idle')cancelDraw();else if(pendingConstraint){pendingConstraint=null;angleEdge1=null;updateConUI();}else if(settingOrigin!=null){settingOrigin=null;updatePanel();}else if(tool==='place-drain'||tool==='place-screen'){pDrain=null;pScreen=null;setTool('select');}else{selId=null;updatePanel();render();}return;}
+  if(e.key==='Escape'){if(offsetMode){cancelOffsetMode();return;}if(document.getElementById('settings-movl').classList.contains('show')){closeSettings();return;}if(document.getElementById('con-movl').classList.contains('show')){cancelConInput();return;}if(drawPhase!=='idle')cancelDraw();else if(pendingConstraint){pendingConstraint=null;angleEdge1=null;updateConUI();}else if(settingOrigin!=null){settingOrigin=null;updatePanel();}else if(tool==='place-drain'||tool==='place-screen'){pDrain=null;pScreen=null;setTool('select');}else{selId=null;updatePanel();render();}return;}
   if(e.key==='Delete'||e.key==='Backspace')deleteSelected();
   if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();}
   if(e.ctrlKey&&(e.key==='y'||e.key==='Y')){e.preventDefault();redo();}
