@@ -323,7 +323,7 @@ select.inp{cursor:pointer}
 <div class="app-main">
   <div class="canvas-wrap" id="canvas-wrap">
     <canvas id="cv"></canvas>
-    <div class="empty-hint" id="ehint"><h2>2×2m Room Ready</h2><p>Select floors to tile · Draw to add more</p></div>
+    <div class="empty-hint" id="ehint"><h2>Draw to Begin</h2><p>Press Draw · click vertices · close shape to create a floor</p></div>
     <div class="cbadge" id="cbadge"></div>
     <div class="edit-badge" id="edit-badge">EDIT MODE</div>
     <div class="coords" id="coords">0, 0</div>
@@ -1067,7 +1067,7 @@ function drawFixturePrev(){
   const baseAng=angByType[pFixture.type]??wallPerp;
   // Preview toilet offset
   let drawPos={...pos};
-  if(pFixture.type==='toilet'&&ws){const perpRad=(baseAng+90)*Math.PI/180;const depth=(pFixture.depth||680)/2;drawPos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};}
+
 
   const sp=w2s(drawPos.x,drawPos.y);
   ctx.globalAlpha=.7;
@@ -1306,7 +1306,7 @@ cv.addEventListener('touchend',e=>{
     const con=applyDrawCon(mw);const{pt:snp}=snapPt(con);
     if(isDbl&&dv.length>2){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();return;}
     if(dv.length>2){const fsp=w2s(dv[0].x,dv[0].y),csp=w2s(snp.x,snp.y);if(dist(fsp,csp)<32){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();return;}}
-    if(drawPhase==='idle')drawPhase='drawing';
+    if(drawPhase==='idle'){drawPhase='drawing';edgeConstraints=[];}  // clear stale constraints for fresh draw
     dv.push({...snp});updateConUI();render();return;
   }
   // HOLD-TO-DRAG resolution
@@ -1339,12 +1339,7 @@ function placeObject(sp){
     const angByType={wall:wallPerp,toilet:wallParallel,vanity:wallParallel,door:wallParallel,window:wallParallel};
     const baseAng=angByType[pFixture.type]??wallPerp;
     let pos=ws?{...ws.pt}:snapObj(raw);
-    // Toilet: offset so the back (tank) touches the wall, not the centre
-    if(pFixture.type==='toilet'&&ws){
-      const perpRad=(baseAng+90)*Math.PI/180;
-      const depth=(pFixture.depth||680)/2;
-      pos={x:pos.x+Math.cos(perpRad)*depth,y:pos.y+Math.sin(perpRad)*depth};
-    }
+    // Toilet/vanity: origin (0,0) IS the wall contact point — no additional offset needed on placement
 
     const typeCount=objs.filter(o=>o.type===pFixture.type).length+1;
     const typeLabel={wall:'Wall',toilet:'Toilet',vanity:'Vanity',door:'Door',window:'Window'};
@@ -1368,7 +1363,7 @@ function handleMove(sp,isTouch){
     if(dragOriginId!==null){const fl=objs.find(o=>o.id===dragOriginId);if(fl)fl.tileOrigin=snapOriginPt(raw,fl.id);render();return;}
     if(o?.type==='drain'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;render();return;}
     if(o?.type==='screen'||o?.type==='wall'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI+90)%360+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
-    if(o?.type==='toilet'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;const pr=(wA+90)*Math.PI/180;const dep=(o.depth||680)/2;o.x=ws.pt.x+Math.cos(pr)*dep;o.y=ws.pt.y+Math.sin(pr)*dep;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
+    if(o?.type==='toilet'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='vanity'){const ws=findWallSnap(raw);if(ws&&!o._manualAngle){const wA=ws.wallAngle*180/Math.PI;o.angle=((wA%360)+360)%360;o.x=ws.pt.x;o.y=ws.pt.y;}else{const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='door'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
     if(o?.type==='window'){const np={x:raw.x-dragOff.x,y:raw.y-dragOff.y};const ws=findWallSnap(np);if(ws&&!o._manualAngle){o.x=ws.pt.x;o.y=ws.pt.y;o.angle=((ws.wallAngle*180/Math.PI%360)+360)%360;}else{const s=snapObj(np);o.x=s.x;o.y=s.y;}render();return;}
@@ -1391,7 +1386,7 @@ function handleDown(sp,isTouch){
     }
     const con=applyDrawCon(mw);let{pt:snp}=snapPt(con);
     if(dv.length>2){const fsp=w2s(dv[0].x,dv[0].y),csp=w2s(snp.x,snp.y);if(dist(fsp,csp)<(isTouch?32:22)){drawPhase='closed';editSelVert=null;editSelEdge=null;updateConUI();render();return;}}
-    if(drawPhase==='idle')drawPhase='drawing';
+    if(drawPhase==='idle'){drawPhase='drawing';edgeConstraints=[];}  // clear stale constraints for fresh draw
     dv.push({...snp});updateConUI();render();return;
   }
   if(tool==='select'){
@@ -1682,16 +1677,21 @@ function panelHtml(){
     return{icon:'▬',cls:'sc',title:o.name||'Wall',sub:'wall',body};
   }
   if(o.type==='toilet'){
+    const fl=getFloorForObj(o),wOpts=fl?wallDropdown(fl):null;
     const body=`<div class="sec"><div class="sec-t">Toilet</div>
     <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
     <div class="dual"><div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||380}" min="200" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
     <div class="row"><label class="lbl">Depth (mm)</label><input class="inp" type="number" value="${o.depth||680}" min="400" inputmode="numeric" onchange="sp(${o.id},'depth',+this.value)"></div></div>
     <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
     <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
-    </div><div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Toilet</button></div>`;
+    </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
+    <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
+    <div class="row"><label class="lbl">Offset from back centre (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??0}" min="0" step="5" inputmode="numeric"></div>
+    <button class="btn btn-ac" onclick="applyToiletOffset(${o.id})">Apply Offset</button></div>`:''}<div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Toilet</button></div>`;
     return{icon:'◯',cls:'dr',title:o.name||'Toilet',sub:'toilet',body};
   }
   if(o.type==='vanity'){
+    const fl=getFloorForObj(o),wOpts=fl?wallDropdown(fl):null;
     const body=`<div class="sec"><div class="sec-t">Vanity</div>
     <div class="row"><label class="lbl">Name</label><input class="inp" value="${esc(o.name)}" onchange="sp(${o.id},'name',this.value)"></div>
     <div class="dual"><div class="row"><label class="lbl">Width (mm)</label><input class="inp" type="number" value="${o.width||900}" min="300" inputmode="numeric" onchange="sp(${o.id},'width',+this.value)"></div>
@@ -1701,10 +1701,18 @@ function panelHtml(){
         <option value="rect"${o.shape==='rect'?' selected':''}>Rectangle</option>
         <option value="double-sink"${o.shape==='double-sink'?' selected':''}>Double Sink</option>
       </select></div>
-
     <div class="row"><label class="lbl">Angle (°)</label><input class="inp" type="number" value="${Math.round(o.angle)}" inputmode="numeric" onchange="sp(${o.id},'angle',(+this.value+360)%360)"></div>
     <div class="agrid" style="margin-top:6px"><button class="btn btn-ol" onclick="sp(${o.id},'angle',0)">0°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',90)">90°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',180)">180°</button><button class="btn btn-ol" onclick="sp(${o.id},'angle',270)">270°</button></div>
-    </div><div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
+    </div>${fl&&wOpts?`<div class="sec"><div class="sec-t">Wall Offset</div>
+    <div class="row"><label class="lbl">Ref Wall</label><select class="inp" id="srw-${o.id}">${wOpts(o.refWall??0)}</select></div>
+    <div class="row"><label class="lbl">Corner</label>
+      <select class="inp" id="svco-${o.id}">
+        <option value="left"${(o.refCorner||'left')==='left'?' selected':''}>Left corner</option>
+        <option value="right"${o.refCorner==='right'?' selected':''}>Right corner</option>
+        <option value="centre"${o.refCorner==='centre'?' selected':''}>Centre</option>
+      </select></div>
+    <div class="row"><label class="lbl">Offset (mm)</label><input class="inp" type="number" id="sro-${o.id}" value="${o.refOffset??0}" min="0" step="5" inputmode="numeric"></div>
+    <button class="btn btn-ac" onclick="applyVanityOffset(${o.id})">Apply Offset</button></div>`:''}<div class="sec"><button class="btn btn-red" onclick="deleteSelected()">Delete Vanity</button></div>`;
     return{icon:'□',cls:'fl',title:o.name||'Vanity',sub:'vanity',body};
   }
   if(o.type==='door'){
@@ -1778,15 +1786,59 @@ function applyScreenOffset(sid){
   // Preserve manually set angle; only auto-angle if user hasn't manually rotated this object
   if(!sc._manualAngle)sc.angle=autoAng;
   sc.refWall=wi;sc.refOffset=d;
-  // Offset toilet/vanity from wall using perpendicular direction
-  const effAng=sc._manualAngle?sc.angle:autoAng;
-  if(sc.type==='toilet'){const perpRad=(effAng+90)*Math.PI/180;const dep=(sc.depth||680)/2;sc.x+=Math.cos(perpRad)*dep;sc.y+=Math.sin(perpRad)*dep;}
+  // Toilet/vanity: origin IS the wall contact point — position already set by lerp above
 
   updatePanel();render();
 }
 
-// ═══════════════════════════════════════════════
-// MODALS
+// Toilet: offset the back centre of the toilet along a chosen wall by d mm
+function applyToiletOffset(tid){
+  const o=objs.find(ob=>ob.id===tid);if(!o)return;
+  const fl=getFloorForObj(o);if(!fl)return;
+  const wi=+document.getElementById(`srw-${tid}`)?.value;
+  const d=+document.getElementById(`sro-${tid}`)?.value||0;
+  const v=fl.vertices,n=v.length,a=v[wi],b=v[(wi+1)%n];
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  // Place toilet wall-contact (back centre) at distance d along the wall from start vertex
+  const t=wLen>0?Math.min(Math.max(d,0),wLen)/wLen:0;
+  const wallPt={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+  const wAng=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+  saveUndo();
+  o.x=wallPt.x;o.y=wallPt.y;
+  if(!o._manualAngle)o.angle=((wAng%360)+360)%360;
+  o.refWall=wi;o.refOffset=d;
+  updatePanel();render();
+}
+
+// Vanity: offset a chosen corner of the vanity along a chosen wall by d mm
+function applyVanityOffset(vid){
+  const o=objs.find(ob=>ob.id===vid);if(!o)return;
+  const fl=getFloorForObj(o);if(!fl)return;
+  const wi=+document.getElementById(`srw-${vid}`)?.value;
+  const d=+document.getElementById(`sro-${vid}`)?.value||0;
+  const corner=document.getElementById(`svco-${vid}`)?.value||'left';
+  const v=fl.vertices,n=v.length,a=v[wi],b=v[(wi+1)%n];
+  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+  const wAng=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+  const halfW=(o.width||900)/2;
+  // Find the wall point for the chosen corner
+  let wallT=Math.min(Math.max(d,0),wLen)/wLen;
+  const wallPt={x:a.x+(b.x-a.x)*wallT,y:a.y+(b.y-a.y)*wallT};
+  // The vanity origin (0,0) is the left corner (in local space)
+  // Adjust origin based on selected corner
+  const ang=o._manualAngle?o.angle:((wAng%360)+360)%360;
+  const rad=ang*Math.PI/180;
+  const cx=Math.cos(rad),cy=Math.sin(rad);
+  let ox=wallPt.x,oy=wallPt.y;
+  if(corner==='left'){/* origin IS left corner, no adjustment */}
+  else if(corner==='right'){ox-=cx*(o.width||900);oy-=cy*(o.width||900);}
+  else{ox-=cx*halfW;oy-=cy*halfW;/* centre */}
+  saveUndo();
+  o.x=ox;o.y=oy;
+  if(!o._manualAngle)o.angle=ang;
+  o.refWall=wi;o.refOffset=d;o.refCorner=corner;
+  updatePanel();render();
+}
 // ═══════════════════════════════════════════════
 function openDrainModal(){document.getElementById('dm').classList.add('show');}
 function closeDM(){document.getElementById('dm').classList.remove('show');}
