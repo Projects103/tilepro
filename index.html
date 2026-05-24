@@ -285,13 +285,13 @@ select.inp{cursor:pointer}
 }
 
 /* ── 3D VIEW ───────────────────────── */
-.view3d-area{flex:1;display:none;overflow:hidden;min-height:0}
+.view3d-area{flex:1;display:none;overflow:hidden;min-height:0;position:relative}
 .view3d-area.show{display:flex}
-#cv3d{flex:1;display:block;touch-action:none;outline:none}
+#cv3d{flex:1;display:block;min-width:0;min-height:0;touch-action:none;outline:none}
 .panel3d{width:var(--panel);flex-shrink:0;background:var(--sf);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden}
 .panel3d .sp-body{flex:1;overflow-y:auto}
-.hud3d{position:absolute;bottom:46px;right:8px;display:flex;flex-direction:column;gap:3px;z-index:5;pointer-events:none}
-.hud3d button{pointer-events:all}
+.pipe-type-btn{flex:1;padding:5px 2px;font-size:10px;font-weight:700;text-transform:uppercase;font-family:'Barlow Condensed',sans-serif;border-radius:3px;border:1px solid var(--bd2);background:var(--sf2);color:var(--tx2);cursor:pointer;text-align:center}
+.pipe-type-btn.on{background:var(--ac);border-color:var(--ac);color:#000}
 @media(max-width:700px){.panel3d{display:none}}
 </style>
 </head>
@@ -434,50 +434,66 @@ select.inp{cursor:pointer}
   <div class="view3d-area" id="view3d-area">
     <canvas id="cv3d"></canvas>
     <div class="panel3d">
-      <div class="sp-hdr">
-        <div class="sp-icon fl">◈</div>
-        <div class="sp-hdr-txt"><span class="sp-title">3D View</span><div class="sp-sub">Bathroom</div></div>
-      </div>
+      <div class="sp-hdr"><div class="sp-icon fl">◈</div><div class="sp-hdr-txt"><span class="sp-title">3D View</span><div class="sp-sub">Bathroom</div></div></div>
       <div class="sp-body">
         <div class="sec"><div class="sec-t">Room</div>
           <div class="row"><label class="lbl">Ceiling Height (mm)</label>
             <input class="inp" id="ceil-h-inp" type="number" value="2400" min="1000" max="6000" step="50" inputmode="numeric" onchange="setCeilH(+this.value)"></div>
           <div class="brow" style="margin-top:5px">
-            <button class="btn btn-ol" onclick="build3DScene()">
-              <svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.7"/></svg>
-              Rebuild
-            </button>
+            <button class="btn btn-ol" onclick="build3DScene()"><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.7"/></svg>Rebuild</button>
             <button class="btn btn-ol" onclick="resetOrbit()">⊙ Centre</button>
           </div>
         </div>
         <div class="sec" id="wall3d-panel" style="display:none">
           <div class="sec-t" id="wall3d-title">Selected Wall</div>
-          <div class="row"><label class="lbl">Tile Height <span id="wall-tile-h-lbl">0</span> mm</label>
-            <div class="slider-row">
-              <input type="range" id="wall-tile-h-sl" min="0" max="2400" value="0" step="25" oninput="setWallTileHSl(+this.value)">
+          <div class="row"><label class="lbl">Copy settings from wall</label>
+            <select class="inp" id="wall3d-link" onchange="linkWall(this.value)">
+              <option value="">None (own settings)</option>
+            </select></div>
+          <div id="wall3d-own">
+            <div class="row"><label class="lbl">Tile Height <span id="wall-tile-h-lbl">0</span> mm</label>
+              <div class="slider-row"><input type="range" id="wall-tile-h-sl" min="0" max="2400" value="0" step="25" oninput="setWallTileHSl(+this.value)"></div>
+              <input class="inp" id="wall-tile-h" type="number" value="0" min="0" step="25" inputmode="numeric" onchange="setWallTileH(+this.value)" style="margin-top:4px">
             </div>
+            <div class="dual"><div class="row"><label class="lbl">Tile W (mm)</label><input class="inp" id="wtile-w" type="number" value="300" min="10" inputmode="numeric" onchange="setWS('tileW',+this.value)"></div>
+            <div class="row"><label class="lbl">Tile H (mm)</label><input class="inp" id="wtile-h" type="number" value="300" min="10" inputmode="numeric" onchange="setWS('tileH',+this.value)"></div></div>
+            <div class="row"><label class="lbl">Tile Colour</label>
+              <div class="color-row"><input type="color" id="wtile-col" value="#e0d4c0" oninput="setWS('tileColor',this.value)"><input class="inp" id="wtile-col-txt" type="text" value="#e0d4c0" oninput="setWS('tileColor',this.value)" style="flex:1"></div></div>
+            <div class="row"><label class="lbl">Grout Colour</label>
+              <div class="color-row"><input type="color" id="wgrout-col" value="#c0b090" oninput="setWS('groutColor',this.value)"><input class="inp" id="wgrout-col-txt" type="text" value="#c0b090" oninput="setWS('groutColor',this.value)" style="flex:1"></div></div>
+            <div class="row"><label class="lbl">Grout Width (mm, max 10)</label><input class="inp" id="wgrout-w" type="number" value="3" min="0" max="10" inputmode="numeric" onchange="setWS('groutW',Math.min(10,+this.value))"></div>
+            <div class="row"><label class="lbl">Price / m² ($)</label><input class="inp" id="wtile-price" type="number" value="0" min="0" step="0.01" inputmode="decimal" onchange="setWS('tilePrice',+this.value)"></div>
+            <div class="row"><label class="lbl">Wastage (%)</label><input class="inp" id="wtile-waste" type="number" value="10" min="0" max="100" inputmode="numeric" onchange="setWS('wastage',+this.value)"></div>
           </div>
-          <div class="row"><input class="inp" id="wall-tile-h" type="number" value="0" min="0" step="25" inputmode="numeric" onchange="setWallTileH(+this.value)"></div>
-          <div class="brow" style="margin-top:5px">
-            <button class="btn btn-ol" onclick="applyTileHAll()">Apply to All Walls</button>
+          <div class="brow" style="margin-top:6px">
+            <button class="btn btn-ol" onclick="applyTileHAll()">Height → All Walls</button>
           </div>
         </div>
-        <div class="sec"><div class="sec-t">Pipe Routing</div>
-          <label class="chk"><input type="checkbox" id="show-supply" checked onchange="build3DScene()"><span>Supply pipes (hot &amp; cold)</span></label>
-          <label class="chk"><input type="checkbox" id="show-drain" checked onchange="build3DScene()"><span>Drain pipe</span></label>
-          <div class="row" style="margin-top:6px"><label class="lbl">Pipe Style</label>
-            <select class="inp" id="pipe-style" onchange="build3DScene()">
-              <option value="standard">Standard (red / blue)</option>
-              <option value="copper">Copper</option>
-              <option value="white">White PVC</option>
-            </select>
+        <div class="sec"><div class="sec-t">Pipe Drawing</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:6px">
+            <button class="pipe-type-btn on" id="pt-hot" onclick="selPipeType('hot',this)">Hot</button>
+            <button class="pipe-type-btn" id="pt-cold" onclick="selPipeType('cold',this)">Cold</button>
+            <button class="pipe-type-btn" id="pt-drain" onclick="selPipeType('drain',this)">Drain</button>
+            <button class="pipe-type-btn" id="pt-custom" onclick="selPipeType('custom',this)">Custom</button>
           </div>
+          <div id="pipe-custom-col" style="display:none" class="row"><label class="lbl">Custom Colour</label>
+            <div class="color-row"><input type="color" id="pipe-custom-color" value="#ff8800" oninput=""><input class="inp" type="text" value="#ff8800" oninput="document.getElementById('pipe-custom-color').value=this.value" style="flex:1"></div></div>
+          <div class="row"><label class="lbl">Diameter (mm)</label><input class="inp" id="pipe-diam" type="number" value="25" min="5" max="100" inputmode="numeric"></div>
+          <div class="brow" style="margin-top:5px">
+            <button class="btn btn-ac" id="pipe-draw-btn" onclick="togglePipeDraw()">✏ Draw Pipe</button>
+            <button class="btn btn-ol" onclick="undoLastPipePoint()">↩ Undo pt</button>
+          </div>
+          <div class="brow" style="margin-top:4px">
+            <button class="btn btn-ol" onclick="endCurrentPipe()">✓ End Pipe</button>
+            <button class="btn btn-red" onclick="clearAllPipes()">🗑 Clear All</button>
+          </div>
+          <div class="stat" style="margin-top:4px"><span class="sl" id="pipe-status">Click walls to place waypoints</span></div>
         </div>
         <div class="sec"><div class="sec-t">Controls</div>
           <div class="stat"><span class="sl">Rotate</span><span class="sv">Left drag</span></div>
-          <div class="stat"><span class="sl">Pan</span><span class="sv">Right drag / two-finger</span></div>
+          <div class="stat"><span class="sl">Pan</span><span class="sv">Right drag</span></div>
           <div class="stat"><span class="sl">Zoom</span><span class="sv">Scroll / pinch</span></div>
-          <div class="stat"><span class="sl">Select wall</span><span class="sv">Click / tap</span></div>
+          <div class="stat"><span class="sl">Select wall / place pipe</span><span class="sv">Click</span></div>
         </div>
       </div>
     </div>
@@ -1606,15 +1622,16 @@ function switchTab(tab){
     refreshQuote();setTimeout(()=>scaleQuoteDoc(true),50);
   } else if(tab==='3d'){
     v3d.classList.add('show');
-    // Load Three.js if needed then init
-    if(typeof THREE==='undefined'){
-      const s=document.createElement('script');
-      s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      s.onload=()=>{_init3D();build3DScene();};
-      document.head.appendChild(s);
-    } else {
-      _init3D();build3DScene();
-    }
+    setTimeout(()=>{
+      if(typeof THREE==='undefined'){
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+        s.onload=()=>{_init3D();resize3D();build3DScene();resetOrbit();};
+        document.head.appendChild(s);
+      } else {
+        _init3D();resize3D();build3DScene();
+      }
+    },30);
   }
   document.getElementById('tab-d').classList.toggle('active',tab==='design');
   document.getElementById('tab-b').classList.toggle('active',tab==='bom');
@@ -2299,6 +2316,27 @@ function quoteDocHTML(){
   if(tf.length){html+=`<div class="q-sec"><div class="q-sec-t">Grout Materials</div><table class="q-tbl"><thead><tr><th>Floor</th><th>Joint</th><th>Est. kg</th><th>Bags</th><th>$/bag</th><th class="pr">Materials</th></tr></thead><tbody>`;for(const f of tf){const kg=estimateGroutKg(f),bags=Math.ceil(kg/Math.max(0.1,f.groutBagSizeKg||2)),sub=bags*(f.groutBagPrice||0);mat+=sub;html+=`<tr><td>${esc(f.name)}</td><td>${f.groutW}mm</td><td>${kg.toFixed(2)} kg</td><td>${bags}×${f.groutBagSizeKg||2}kg</td><td>$${(f.groutBagPrice||0).toFixed(2)}</td><td class="${sub?'pr':'na'}">${sub?'$'+sub.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
   if(drains.length){html+=`<div class="q-sec"><div class="q-sec-t">Drain Covers</div><table class="q-tbl"><thead><tr><th>Item</th><th>Size</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const d of drains){const c=d.cost||0;mat+=c;html+=`<tr><td>${esc(d.name)}</td><td>${d.cw}×${d.ch}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
   if(screens.length){html+=`<div class="q-sec"><div class="q-sec-t">Shower Screens</div><table class="q-tbl"><thead><tr><th>Item</th><th>Length</th><th>Thickness</th><th>Qty</th><th class="pr">Cost</th></tr></thead><tbody>`;for(const s of screens){const c=s.cost||0;mat+=c;html+=`<tr><td>${esc(s.name)}</td><td>${s.len}mm</td><td>${s.thick}mm</td><td>1</td><td class="${c?'pr':'na'}">${c?'$'+c.toFixed(2):'—'}</td></tr>`;}html+='</tbody></table></div>';}
+  // ── Wall tiles ──────────────────────────────────────────────────────────────
+  const wallTileRows=[];let wallTileMat=0;
+  for(const fl of floors){
+    const n=fl.vertices.length;
+    for(let i=0;i<n;i++){
+      const a=fl.vertices[i],b=fl.vertices[(i+1)%n];
+      const ws2=window.getWS?getWS(fl,i):{wallH:fl.tiled?0:0,tileW:fl.tileW||300,tileH:fl.tileH||300,tileColor:fl.tileColor||'#e0d4c0',tilePrice:fl.tilePrice||0,wastage:fl.wastage||10};
+      if(!ws2.wallH||ws2.wallH<=0||!ws2.tilePrice)continue;
+      const wallLen=Math.hypot(b.x-a.x,b.y-a.y); // mm
+      const wallArea=wallLen*ws2.wallH/1e6; // m²
+      const areaW=wallArea*(1+(ws2.wastage||10)/100);
+      const tileCount=Math.ceil(areaW*1e6/(ws2.tileW*ws2.tileH));
+      const sub=areaW*ws2.tilePrice;
+      wallTileMat+=sub;
+      wallTileRows.push(`<tr><td>${esc(fl.name)} W${i+1}</td><td>${Math.round(wallLen)}×${ws2.wallH}mm</td><td>${areaW.toFixed(2)} m²</td><td>${ws2.tileW}×${ws2.tileH}mm</td><td>$${ws2.tilePrice.toFixed(2)}</td><td class="pr">$${sub.toFixed(2)}</td></tr>`);
+    }
+  }
+  if(wallTileRows.length){
+    mat+=wallTileMat;
+    html+=`<div class="q-sec"><div class="q-sec-t">Wall Tiles</div><table class="q-tbl"><thead><tr><th>Wall</th><th>Area (L×H)</th><th>Area (m²)</th><th>Tile Size</th><th>$/m²</th><th class="pr">Materials</th></tr></thead><tbody>${wallTileRows.join('')}</tbody></table></div>`;
+  }
   const toilets=objs.filter(o=>o.type==='toilet');
   const vanities=objs.filter(o=>o.type==='vanity');
   const doors=objs.filter(o=>o.type==='door');
@@ -2575,63 +2613,59 @@ window.addEventListener('load',()=>{
     if(e.target.matches('input[type=range]'))e.stopPropagation();
   },{capture:true,passive:false});
 });
+
 // ═══════════════════════════════════════════════
 // 3D VIEW
 // ═══════════════════════════════════════════════
-let t3=null;         // {scene,cam,ren,ceil}
-let walls3d=[];      // selectable wall refs
-let sel3d=null;      // {floorId,wallIdx}
-let wallTileH={};    // key=`${fid}_${wi}`, value mm
-let ceilH3d=2400;    // mm
+let t3=null;
+let walls3d=[];        // [{mesh,floorId,wallIdx,key}]
+let sel3d=null;        // {floorId,wallIdx}
+let wallSettings={};   // key→{wallH,tileW,tileH,tileColor,groutColor,groutW,tilePrice,wastage,linkedTo}
+let ceilH3d=2400;
 let raf3d=null;
-const MM=1/1000;     // mm→m
+const MM3=1/1000;
+
+// Pipe drawing
+let customPipes=[];    // [{pts:[{x,y,z}],color,radius,meshes:[]}]
+let activePipe=null;   // {pts,color,radius,meshes}
+let pipeDrawMode=false;
+let activePipeType='hot';
+const PIPE_COLS={hot:0xcc2020,cold:0x2060cc,drain:0x606870,custom:0xff8800};
 
 let orb={theta:0.7,phi:1.1,r:6,tx:0,ty:1.2,tz:0};
 let orbDrag={active:false,btn:0,x0:0,y0:0};
-let t3_pinchD0=1,t3_pinchR0=1,t3_lastTouch=null;
+let t3_pinchD0=1,t3_pinchR0=1,t3_touch0=null;
 
 function _init3D(){
   if(t3){resize3D();return;}
   const cv=document.getElementById('cv3d');
   const scene=new THREE.Scene();
   scene.background=new THREE.Color(0x0c1822);
-  scene.fog=new THREE.FogExp2(0x0c1822,0.03);
+  scene.fog=new THREE.FogExp2(0x0c1822,0.025);
   const cam=new THREE.PerspectiveCamera(52,1,0.01,200);
   const ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
   ren.setPixelRatio(Math.min(devicePixelRatio,2));
   ren.shadowMap.enabled=true;
   ren.shadowMap.type=THREE.PCFSoftShadowMap;
   // Lights
-  const amb=new THREE.AmbientLight(0xc8d8e8,0.6);scene.add(amb);
+  scene.add(new THREE.AmbientLight(0xc8d8e8,0.6));
   const sun=new THREE.DirectionalLight(0xfff8e0,0.9);
   sun.position.set(6,12,6);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);
-  sun.shadow.camera.near=0.1;sun.shadow.camera.far=50;
   sun.shadow.camera.left=sun.shadow.camera.bottom=-12;
   sun.shadow.camera.right=sun.shadow.camera.top=12;
+  sun.shadow.camera.near=0.1;sun.shadow.camera.far=50;
   scene.add(sun);
-  const fill=new THREE.DirectionalLight(0x8090b0,0.4);fill.position.set(-5,3,-4);scene.add(fill);
-  const ceilLight=new THREE.PointLight(0xfff8f0,0.9,10);
-  ceilLight.position.set(0,ceilH3d*MM-0.15,0);scene.add(ceilLight);
-  const grid=new THREE.GridHelper(30,60,0x1e3050,0x142030);scene.add(grid);
-  t3={scene,cam,ren,ceilLight,sun};
+  scene.add(Object.assign(new THREE.DirectionalLight(0x8090b0,0.4),{position:{x:-5,y:3,z:-4}}));
+  const pLight=new THREE.PointLight(0xfff8f0,0.8,12);
+  pLight.position.set(0,ceilH3d*MM3-0.15,0);scene.add(pLight);
+  scene.add(new THREE.GridHelper(30,60,0x1e3050,0x142030));
+  t3={scene,cam,ren,pLight,sun};
   setupOrb3D(cv);
-  cv.addEventListener('click',onClick3D);
-  cv.addEventListener('touchstart',e=>{
-    e.preventDefault();
-    if(e.touches.length===2){orbDrag.active=false;t3_pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);t3_pinchR0=orb.r;}
-    else{orbDrag.active=true;orbDrag.btn=0;orbDrag.x0=e.touches[0].clientX;orbDrag.y0=e.touches[0].clientY;t3_lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};}
-  },{passive:false});
-  cv.addEventListener('touchmove',e=>{
-    e.preventDefault();
-    if(e.touches.length===2){orbDrag.active=false;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);orb.r=Math.max(0.5,Math.min(30,t3_pinchR0*t3_pinchD0/d));orbApply();}
-    else if(orbDrag.active){const x=e.touches[0].clientX,y=e.touches[0].clientY;orb.theta-=(x-orbDrag.x0)*0.008;orb.phi+=(y-orbDrag.y0)*0.008;orbDrag.x0=x;orbDrag.y0=y;orbApply();}
-  },{passive:false});
-  cv.addEventListener('touchend',e=>{
-    orbDrag.active=false;
-    if(t3_lastTouch&&e.changedTouches.length===1){const dx=Math.abs(e.changedTouches[0].clientX-t3_lastTouch.x),dy=Math.abs(e.changedTouches[0].clientY-t3_lastTouch.y);if(dx<8&&dy<8)onClick3D(e.changedTouches[0]);}
-    t3_lastTouch=null;
-  },{passive:true});
+  cv.addEventListener('click',on3DClick);
+  cv.addEventListener('touchstart',onT3Start,{passive:false});
+  cv.addEventListener('touchmove',onT3Move,{passive:false});
+  cv.addEventListener('touchend',onT3End,{passive:true});
   resize3D();orbApply();animate3D();
 }
 
@@ -2641,126 +2675,212 @@ function setupOrb3D(cv){
     if(!orbDrag.active)return;
     const dx=e.clientX-orbDrag.x0,dy=e.clientY-orbDrag.y0;orbDrag.x0=e.clientX;orbDrag.y0=e.clientY;
     if(orbDrag.btn===0){orb.theta-=dx*0.007;orb.phi=Math.max(0.05,Math.min(Math.PI-0.05,orb.phi+dy*0.007));}
-    else{const s=orb.r*0.002;orb.tx-=(Math.cos(orb.theta)*dx+Math.sin(orb.theta)*dy*0.3)*s;orb.tz+=(Math.sin(orb.theta)*dx-Math.cos(orb.theta)*dy*0.3)*s;}
+    else{const s=orb.r*0.002;orb.tx-=(Math.cos(orb.theta)*dx+Math.sin(orb.theta)*0.3*dy)*s;orb.tz+=(Math.sin(orb.theta)*dx-Math.cos(orb.theta)*0.3*dy)*s;}
     orbApply();
   });
   window.addEventListener('mouseup',()=>{orbDrag.active=false;});
   cv.addEventListener('wheel',e=>{e.preventDefault();orb.r=Math.max(0.5,Math.min(30,orb.r+e.deltaY*0.01));orbApply();},{passive:false});
   cv.addEventListener('contextmenu',e=>e.preventDefault());
 }
-
+function onT3Start(e){
+  e.preventDefault();
+  if(e.touches.length===2){orbDrag.active=false;t3_pinchD0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);t3_pinchR0=orb.r;}
+  else{orbDrag.active=true;orbDrag.btn=0;orbDrag.x0=e.touches[0].clientX;orbDrag.y0=e.touches[0].clientY;t3_touch0={x:e.touches[0].clientX,y:e.touches[0].clientY};}
+}
+function onT3Move(e){
+  e.preventDefault();
+  if(e.touches.length===2){orbDrag.active=false;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);orb.r=Math.max(0.5,Math.min(30,t3_pinchR0*t3_pinchD0/d));orbApply();}
+  else if(orbDrag.active){const x=e.touches[0].clientX,y=e.touches[0].clientY;orb.theta-=(x-orbDrag.x0)*0.008;orb.phi=Math.max(0.05,Math.min(Math.PI-0.05,orb.phi+(y-orbDrag.y0)*0.008));orbDrag.x0=x;orbDrag.y0=y;orbApply();}
+}
+function onT3End(e){
+  orbDrag.active=false;
+  if(t3_touch0&&e.changedTouches.length===1){const tc=e.changedTouches[0];if(Math.hypot(tc.clientX-t3_touch0.x,tc.clientY-t3_touch0.y)<8)on3DClick(tc);}
+  t3_touch0=null;
+}
 function orbApply(){
   if(!t3)return;
   const ph=Math.max(0.05,Math.min(Math.PI-0.05,orb.phi));
   t3.cam.position.set(orb.tx+orb.r*Math.sin(ph)*Math.cos(orb.theta),orb.ty+orb.r*Math.cos(ph),orb.tz+orb.r*Math.sin(ph)*Math.sin(orb.theta));
   t3.cam.lookAt(orb.tx,orb.ty,orb.tz);
 }
-
 function resetOrbit(){
-  const floors=objs.filter(o=>o.type==='floor'&&!o._editing);
-  if(floors.length){let sx=0,sz=0,cnt=0;for(const fl of floors)for(const v of fl.vertices){sx+=v.x;sz+=v.y;cnt++;}orb.tx=sx/cnt*MM;orb.tz=-sz/cnt*MM;}
-  orb.ty=ceilH3d*MM/2;orb.r=6;orb.theta=0.7;orb.phi=1.1;
-  orbApply();
+  const fl=objs.filter(o=>o.type==='floor'&&!o._editing);
+  if(fl.length){let sx=0,sz=0,cnt=0;for(const f of fl)for(const v of f.vertices){sx+=v.x;sz+=v.y;cnt++;}orb.tx=sx/cnt*MM3;orb.tz=-sz/cnt*MM3;}
+  orb.ty=ceilH3d*MM3/2;orb.r=6;orb.theta=0.7;orb.phi=1.1;orbApply();
 }
-
 function resize3D(){
   if(!t3)return;
-  const a=document.getElementById('view3d-area'),p=document.getElementById('cv3d').parentElement;
-  const w=a.clientWidth-(document.querySelector('.panel3d')?.clientWidth||0),h=a.clientHeight;
+  const a=document.getElementById('view3d-area');
+  const pw=window.innerWidth<=700?0:(document.querySelector('.panel3d')?.offsetWidth||0);
+  const w=a.offsetWidth-pw,h=a.offsetHeight;
   if(!w||!h)return;
   t3.ren.setSize(w,h);t3.cam.aspect=w/h;t3.cam.updateProjectionMatrix();
+}
+
+// ─ WALL SETTINGS ──────────────────────────────
+function getWS(fl,wi){
+  const key=`${fl.id}_${wi}`;
+  const s=wallSettings[key]||{};
+  const src=s.linkedTo?wallSettings[s.linkedTo]||{}:s;
+  return {
+    wallH:s.wallH??(fl.tiled?ceilH3d:0),
+    tileW:src.tileW??fl.tileW??300,
+    tileH:src.tileH??fl.tileH??300,
+    tileColor:src.tileColor??fl.tileColor??'#e0d4c0',
+    groutColor:src.groutColor??fl.groutColor??'#c0b090',
+    groutW:src.groutW??fl.groutW??3,
+    tilePrice:src.tilePrice??fl.tilePrice??0,
+    wastage:src.wastage??fl.wastage??10,
+    linkedTo:s.linkedTo,
+  };
+}
+function setWS(prop,val){
+  if(!sel3d)return;
+  const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
+  if(!wallSettings[key])wallSettings[key]={};
+  wallSettings[key][prop]=val;
+  if(prop==='tileColor'){document.getElementById('wtile-col').value=val;document.getElementById('wtile-col-txt').value=val;}
+  if(prop==='groutColor'){document.getElementById('wgrout-col').value=val;document.getElementById('wgrout-col-txt').value=val;}
+  build3DScene();
+}
+function setWallTileH(v){
+  if(!sel3d)return;
+  const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
+  if(!wallSettings[key])wallSettings[key]={};
+  wallSettings[key].wallH=v;
+  document.getElementById('wall-tile-h-sl').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;
+  build3DScene();
+}
+function setWallTileHSl(v){
+  document.getElementById('wall-tile-h').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;setWallTileH(v);
+}
+function applyTileHAll(){
+  if(!sel3d)return;
+  const fl=objs.find(o=>o.id===sel3d.floorId);if(!fl)return;
+  const h=wallSettings[`${sel3d.floorId}_${sel3d.wallIdx}`]?.wallH??ceilH3d;
+  for(let i=0;i<fl.vertices.length;i++){const k=`${fl.id}_${i}`;if(!wallSettings[k])wallSettings[k]={};wallSettings[k].wallH=h;}
+  build3DScene();
+}
+function linkWall(linkedTo){
+  if(!sel3d)return;
+  const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
+  if(!wallSettings[key])wallSettings[key]={};
+  wallSettings[key].linkedTo=linkedTo||undefined;
+  document.getElementById('wall3d-own').style.opacity=linkedTo?'0.5':'1';
+  build3DScene();
+}
+function setCeilH(v){
+  ceilH3d=Math.max(1000,Math.min(6000,v));
+  if(t3?.pLight)t3.pLight.position.y=ceilH3d*MM3-0.15;
+  document.getElementById('wall-tile-h-sl').max=ceilH3d;
+  build3DScene();
 }
 
 // ─ SCENE BUILD ────────────────────────────────
 function build3DScene(){
   if(!t3)return;
   const s=t3.scene;
-  for(let i=s.children.length-1;i>=0;i--){const o=s.children[i];if(o.isLight||o.type==='GridHelper')continue;s.remove(o);}
+  for(let i=s.children.length-1;i>=0;i--){const o=s.children[i];if(!o.isLight&&o.type!=='GridHelper')s.remove(o);}
   walls3d=[];
   for(const fl of objs.filter(o=>o.type==='floor'&&!o._editing&&o.vertices.length>=3))buildFloor3D(fl);
   buildFixtures3D();
-  buildPipes3D();
+  // Re-add pipe meshes
+  for(const pipe of customPipes)pipe.meshes.forEach(m=>t3.scene.add(m));
+  if(activePipe)activePipe.meshes.forEach(m=>t3.scene.add(m));
   show3DPanel();
 }
 
 function tileTex3D(tw,th,tc,gc,gw){
-  const r=1.5,cw=Math.max(4,Math.round(tw*r)),ch=Math.max(4,Math.round(th*r));
+  const r=2,cw=Math.max(4,Math.round(tw*r)),ch=Math.max(4,Math.round(th*r));
   const can=document.createElement('canvas');can.width=cw;can.height=ch;
-  const ctx=can.getContext('2d');
-  ctx.fillStyle=gc||'#c0b090';ctx.fillRect(0,0,cw,ch);
-  const gp=Math.max(1,Math.round(gw*r));
-  ctx.fillStyle=tc||'#e0d4c0';ctx.fillRect(gp,gp,cw-gp*2,ch-gp*2);
+  const ctx2=can.getContext('2d');
+  ctx2.fillStyle=gc||'#c0b090';ctx2.fillRect(0,0,cw,ch);
+  const gp=Math.max(1,Math.round((gw||3)*r));
+  ctx2.fillStyle=tc||'#e0d4c0';ctx2.fillRect(gp,gp,cw-gp*2,ch-gp*2);
   const tex=new THREE.CanvasTexture(can);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;return tex;
 }
 
-function wallGeo3D(ax,ay,bx,by,y0,y1){
+function buildFloor3D(fl){
+  const vs=fl.vertices,n=vs.length;
+  // Centroid for inward normal detection
+  const cx3=vs.reduce((s,v)=>s+v.x,0)/n,cz3=vs.reduce((s,v)=>s+v.y,0)/n;
+
+  // Floor surface — only show if tiled
+  if(fl.tiled&&fl.tileW>0){
+    const shape=new THREE.Shape();shape.moveTo(vs[0].x*MM3,-vs[0].y*MM3);
+    for(let i=1;i<n;i++)shape.lineTo(vs[i].x*MM3,-vs[i].y*MM3);shape.closePath();
+    const fg=new THREE.ShapeGeometry(shape);fg.rotateX(-Math.PI/2);
+    // Set UV repeat for tiles
+    let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+    for(const v of vs){mnx=Math.min(mnx,v.x);mny=Math.min(mny,v.y);mxx=Math.max(mxx,v.x);mxy=Math.max(mxy,v.y);}
+    const tex=tileTex3D(fl.tileW,fl.tileH,fl.tileColor,fl.groutColor,fl.groutW||3);
+    tex.repeat.set((mxx-mnx)/fl.tileW,(mxy-mny)/fl.tileH);
+    const fm=new THREE.MeshLambertMaterial({map:tex,side:THREE.FrontSide});
+    const fmesh=new THREE.Mesh(fg,fm);fmesh.position.y=0.003;fmesh.receiveShadow=true;t3.scene.add(fmesh);
+  }
+
+  // Walls — inward facing tiles only
+  for(let i=0;i<n;i++){
+    const a=vs[i],b=vs[(i+1)%n];
+    const ws2=getWS(fl,i);
+    buildWall3D(fl,i,a,b,ws2,cx3,cz3);
+  }
+}
+
+function wallNormalFacesInward(ax,ay,bx,by,cx3,cz3){
+  // Normal of wall a→b pointing left (standard CCW winding = inward)
+  const dx=bx-ax,dz=by-ay;
+  const nx=-dz,nz=dx; // perpendicular, un-normalised
+  const toCx=cx3-ax,toCz=cz3-ay;
+  return (toCx*nx+toCz*nz)>0;
+}
+
+function buildWall3D(fl,wi,a,b,ws2,cx3,cz3){
+  const key=`${fl.id}_${wi}`;
+  const isSel=sel3d?.floorId===fl.id&&sel3d?.wallIdx===wi;
+  const cM=ceilH3d*MM3,tM=ws2.wallH*MM3;
+  // Determine if standard winding faces inward
+  const stdInward=wallNormalFacesInward(a.x,a.y,b.x,b.y,cx3,cz3);
+  // For inner face: if standard is outward, swap a/b
+  const [ia,ib]=stdInward?[a,b]:[b,a];
+
+  // Outer wall — plain, standard winding
+  const outerMat=new THREE.MeshLambertMaterial({color:isSel?0xd0e8f0:0xe8e4df,side:THREE.FrontSide});
+  t3.scene.add(Object.assign(new THREE.Mesh(makeWallGeo(a.x,a.y,b.x,b.y,0,cM),outerMat),{receiveShadow:true}));
+
+  // Inner tiles — reversed winding so normal faces into room
+  if(tM>0.005){
+    const wLen=Math.hypot(b.x-a.x,b.y-a.y);
+    const tex=tileTex3D(ws2.tileW,ws2.tileH,ws2.tileColor,ws2.groutColor,ws2.groutW);
+    tex.repeat.set(wLen/ws2.tileW,ws2.wallH/ws2.tileH);
+    const tileMat=new THREE.MeshLambertMaterial({map:tex,side:THREE.FrontSide,
+      emissive:isSel?new THREE.Color(0x8fe3ff):new THREE.Color(0),emissiveIntensity:isSel?0.1:0});
+    const tGeo=makeWallGeo(ia.x,ia.y,ib.x,ib.y,0,tM); // inner face
+    const tm=new THREE.Mesh(tGeo,tileMat);tm.receiveShadow=true;
+    tm.userData={type:'wall',floorId:fl.id,wallIdx:wi};
+    walls3d.push({mesh:tm,floorId:fl.id,wallIdx:wi,key});t3.scene.add(tm);
+  }
+  // Paint above tiles — inner face
+  if(cM-tM>0.005){
+    const paintMat=new THREE.MeshLambertMaterial({color:isSel?0xe0f0f4:0xf0ece6,side:THREE.FrontSide});
+    t3.scene.add(new THREE.Mesh(makeWallGeo(ia.x,ia.y,ib.x,ib.y,tM,cM),paintMat));
+  }
+  // Always add invisible hit mesh (full wall, inner face)
+  const hitGeo=makeWallGeo(ia.x,ia.y,ib.x,ib.y,0,cM);
+  const hitMesh=new THREE.Mesh(hitGeo,new THREE.MeshBasicMaterial({visible:false,side:THREE.FrontSide}));
+  hitMesh.userData={type:'wall',floorId:fl.id,wallIdx:wi};
+  walls3d.push({mesh:hitMesh,floorId:fl.id,wallIdx:wi,key});t3.scene.add(hitMesh);
+}
+
+function makeWallGeo(ax,ay,bx,by,y0,y1){
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array([ax*MM,y0,-ay*MM,bx*MM,y0,-by*MM,bx*MM,y1,-by*MM,ax*MM,y1,-ay*MM]),3));
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array([ax*MM3,y0,-ay*MM3,bx*MM3,y0,-by*MM3,bx*MM3,y1,-by*MM3,ax*MM3,y1,-ay*MM3]),3));
   geo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array([0,0,1,0,1,1,0,1]),2));
   geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0,1,2,0,2,3]),1));
   geo.computeVertexNormals();return geo;
 }
 
-function buildFloor3D(fl){
-  const vs=fl.vertices,n=vs.length,tw=fl.tileW||300,th=fl.tileH||300;
-  // Floor surface
-  const shape=new THREE.Shape();shape.moveTo(vs[0].x*MM,-vs[0].y*MM);
-  for(let i=1;i<n;i++)shape.lineTo(vs[i].x*MM,-vs[i].y*MM);shape.closePath();
-  const fg=new THREE.ShapeGeometry(shape);fg.rotateX(-Math.PI/2);
-  let fm;
-  if(fl.tiled){
-    const tex=tileTex3D(tw,th,fl.tileColor,fl.groutColor,fl.groutW||3);
-    let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
-    for(const v of vs){mnx=Math.min(mnx,v.x);mny=Math.min(mny,v.y);mxx=Math.max(mxx,v.x);mxy=Math.max(mxy,v.y);}
-    tex.repeat.set((mxx-mnx)/tw,(mxy-mny)/th);
-    fm=new THREE.MeshLambertMaterial({map:tex,side:THREE.DoubleSide});
-  }else fm=new THREE.MeshLambertMaterial({color:0x1c2630,side:THREE.DoubleSide});
-  const fmesh=new THREE.Mesh(fg,fm);fmesh.position.y=0.002;fmesh.receiveShadow=true;t3.scene.add(fmesh);
-  // Ceiling
-  const cg=new THREE.ShapeGeometry(shape);cg.rotateX(Math.PI/2);
-  const cmesh=new THREE.Mesh(cg,new THREE.MeshLambertMaterial({color:0xf4f0ec,side:THREE.DoubleSide}));
-  cmesh.position.y=ceilH3d*MM;t3.scene.add(cmesh);
-  // Walls
-  for(let i=0;i<n;i++){
-    const a=vs[i],b=vs[(i+1)%n];
-    const key=`${fl.id}_${i}`;
-    const defH=fl.tiled?ceilH3d:0;
-    const tH=wallTileH[key]??defH;
-    buildWall3D(fl,i,a,b,tH);
-  }
-}
-
-function buildWall3D(fl,wi,a,b,tH){
-  const key=`${fl.id}_${wi}`;
-  const wLen=Math.hypot(b.x-a.x,b.y-a.y);
-  const cM=ceilH3d*MM,tM=tH*MM;
-  const isSel=sel3d?.floorId===fl.id&&sel3d?.wallIdx===wi;
-  const selEmit=isSel?new THREE.Color(0x8fe3ff):new THREE.Color(0);
-  // Paint above tiles
-  if(cM-tM>0.005){
-    const m=new THREE.MeshLambertMaterial({color:isSel?0xe8f4f8:0xf0ece6,emissive:selEmit,emissiveIntensity:0.06,side:THREE.DoubleSide});
-    t3.scene.add(new THREE.Mesh(wallGeo3D(a.x,a.y,b.x,b.y,tM,cM),m));
-  }
-  // Tiled section (also makes wall selectable even if no tiles)
-  const geo=wallGeo3D(a.x,a.y,b.x,b.y,0,Math.max(tM,cM));
-  if(tM>0.005){
-    const fl2=fl;
-    const tex=tileTex3D(fl2.tileW||300,fl2.tileH||300,fl2.tileColor||'#e0d4c0',fl2.groutColor||'#c0b090',fl2.groutW||3);
-    tex.repeat.set(wLen/(fl2.tileW||300),tH/(fl2.tileH||300));
-    const tileGeo=wallGeo3D(a.x,a.y,b.x,b.y,0,tM);
-    const mat=new THREE.MeshLambertMaterial({map:tex,emissive:selEmit,emissiveIntensity:0.1,side:THREE.DoubleSide});
-    const mesh=new THREE.Mesh(tileGeo,mat);
-    mesh.receiveShadow=true;mesh.userData={type:'wall',floorId:fl.id,wallIdx:wi};
-    walls3d.push({mesh,floorId:fl.id,wallIdx:wi,key});t3.scene.add(mesh);
-  }
-  // Invisible hit plane for selection
-  const hitGeo=wallGeo3D(a.x,a.y,b.x,b.y,0,cM);
-  const hitMat=new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide});
-  const hitMesh=new THREE.Mesh(hitGeo,hitMat);
-  hitMesh.userData={type:'wall',floorId:fl.id,wallIdx:wi};
-  walls3d.push({mesh:hitMesh,floorId:fl.id,wallIdx:wi,key});t3.scene.add(hitMesh);
-}
-
+// ─ FIXTURES ───────────────────────────────────
 function buildFixtures3D(){
   for(const o of objs){
     if(o.type==='toilet')buildToilet3D(o);
@@ -2771,201 +2891,196 @@ function buildFixtures3D(){
     else if(o.type==='drain')buildDrain3D(o);
   }
 }
-
-function addBox(w,h,d,color,gx,gy,gz,ry=0,castShadow=true){
-  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color}));
-  m.position.set(gx*MM,gy*MM,-gz*MM);m.rotation.y=ry;
-  if(castShadow)m.castShadow=true;m.receiveShadow=true;t3.scene.add(m);return m;
+function addBox3(w,h,d,col,x,y,z,ry=0){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM3,h*MM3,d*MM3),new THREE.MeshLambertMaterial({color:col}));
+  m.position.set(x*MM3,y*MM3,-z*MM3);m.rotation.y=ry;m.castShadow=true;m.receiveShadow=true;t3.scene.add(m);return m;
 }
-
 function buildToilet3D(o){
-  const ang=-o.angle*Math.PI/180;
-  const w=o.width||380,d=o.depth||680;
+  const ang=-o.angle*Math.PI/180,w=o.width||380,d=o.depth||680;
   const g=new THREE.Group();
-  // Tank
-  const tk=new THREE.Mesh(new THREE.BoxGeometry(w*.9*MM,220*MM,200*MM),new THREE.MeshLambertMaterial({color:0xe8e8e0}));
-  tk.position.set(0,110*MM,0);g.add(tk);
-  // Bowl (use CylinderGeometry - available in r128)
-  const bowl=new THREE.Mesh(new THREE.CylinderGeometry(w*.45*MM,w*.4*MM,(d-200)*MM,16),new THREE.MeshLambertMaterial({color:0xf0f0e8}));
-  bowl.position.set(0,((d-200)/2)*MM,(d-200)*MM/2+100*MM);g.add(bowl);
+  const mat=new THREE.MeshLambertMaterial({color:0xeeeee8});
+  const tank=new THREE.Mesh(new THREE.BoxGeometry(w*.88*MM3,200*MM3,185*MM3),mat);tank.position.set(0,100*MM3,0);g.add(tank);
+  const bowl=new THREE.Mesh(new THREE.CylinderGeometry(w*.44*MM3,w*.38*MM3,(d-200)*MM3,16),mat);
+  bowl.position.set(0,((d-200)/2)*MM3,(100+(d-200)/2)*MM3);g.add(bowl);
   g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
-  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+  g.position.set(o.x*MM3,0,-o.y*MM3);g.rotation.y=ang;t3.scene.add(g);
 }
-
 function buildVanity3D(o){
-  const ang=-o.angle*Math.PI/180;
-  const w=o.width||900,d=o.depth||500,h=860;
+  const ang=-o.angle*MM3*1000*Math.PI/180,w=o.width||900,d=o.depth||500,h=860;
+  const angR=-o.angle*Math.PI/180;
   const g=new THREE.Group();
-  // Cabinet body
-  const cab=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color:0xd8d0c8}));
-  cab.position.set(0,h*MM/2,d*MM/2);g.add(cab);
-  // Countertop
-  const top=new THREE.Mesh(new THREE.BoxGeometry(w*MM,30*MM,(d+20)*MM),new THREE.MeshLambertMaterial({color:0xc8c0b8}));
-  top.position.set(0,(h+15)*MM,d*MM/2);g.add(top);
-  // Basin
-  const sink=new THREE.Mesh(new THREE.CylinderGeometry(w*.22*MM,w*.2*MM,60*MM,12),new THREE.MeshLambertMaterial({color:0xf0f0f0}));
-  sink.position.set(0,(h+20)*MM,d*MM*.5);g.add(sink);
-  // Tap
-  const tap=new THREE.Mesh(new THREE.CylinderGeometry(8*MM,8*MM,120*MM,6),new THREE.MeshLambertMaterial({color:0xb0b0a0}));
-  tap.position.set(0,(h+80)*MM,d*MM*.5);g.add(tap);
+  const cab=new THREE.Mesh(new THREE.BoxGeometry(w*MM3,h*MM3,d*MM3),new THREE.MeshLambertMaterial({color:0xd8d0c0}));cab.position.set(0,h*MM3/2,d*MM3/2);g.add(cab);
+  const top=new THREE.Mesh(new THREE.BoxGeometry((w+20)*MM3,30*MM3,(d+20)*MM3),new THREE.MeshLambertMaterial({color:0xc0b8b0}));top.position.set(0,(h+15)*MM3,(d/2)*MM3);g.add(top);
+  const sink=new THREE.Mesh(new THREE.CylinderGeometry(w*.22*MM3,w*.2*MM3,50*MM3,12),new THREE.MeshLambertMaterial({color:0xf0f0ee}));sink.position.set(0,(h+15)*MM3,d*.5*MM3);g.add(sink);
+  const tap=new THREE.Mesh(new THREE.CylinderGeometry(7*MM3,7*MM3,110*MM3,6),new THREE.MeshLambertMaterial({color:0xb0a898}));tap.position.set(0,(h+70)*MM3,d*.5*MM3);g.add(tap);
   g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
-  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+  g.position.set(o.x*MM3,0,-o.y*MM3);g.rotation.y=angR;t3.scene.add(g);
 }
-
 function buildDoor3D(o){
-  const ang=-o.angle*Math.PI/180;
-  const w=o.width||900,h=2100,thick=40;
+  const ang=-o.angle*Math.PI/180,w=o.width||900,h=2100,tk=38;
   const g=new THREE.Group();
-  // Frame jambs
-  const jamb=new THREE.MeshLambertMaterial({color:0xa09070});
-  [[-w/2-50,0],[ w/2+50,0]].forEach(([x])=>{
-    const j=new THREE.Mesh(new THREE.BoxGeometry(50*MM,h*MM,thick*MM),jamb);
-    j.position.set((x)*MM,(h/2)*MM,0);g.add(j);
-  });
-  // Lintel
-  const lin=new THREE.Mesh(new THREE.BoxGeometry((w+100)*MM,60*MM,thick*MM),jamb);
-  lin.position.set(0,(h+30)*MM,0);g.add(lin);
-  // Door slab (partly open)
-  const slab=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,thick*0.5*MM),new THREE.MeshLambertMaterial({color:0xc8b890}));
-  slab.position.set(0,h*MM/2,thick*0.25*MM);
-  // Pivot at one edge
-  const pivot=new THREE.Group();pivot.position.set(-w*MM/2,0,0);
-  slab.position.x=w*MM/2;pivot.add(slab);pivot.rotation.y=-0.5;g.add(pivot);
-  g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;ch.receiveShadow=true;}});
-  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
-}
-
-function buildWindow3D(o){
-  const ang=-o.angle*Math.PI/180;
-  const w=o.width||900,h=1000,sillH=900,thick=120;
-  const g=new THREE.Group();
-  const mat=new THREE.MeshLambertMaterial({color:0xd0d8c8});
-  // Outer frame
-  [[0,sillH+h/2,0,w,h,thick],[0,sillH-30/2,0,w,30,thick*1.5],[0,sillH+h+30/2,0,w,30,thick*1.5],
-   [-w/2+30/2,sillH+h/2,0,30,h,thick*1.2],[w/2-30/2,sillH+h/2,0,30,h,thick*1.2]
-  ].forEach(([x,y,z,bw,bh,bd])=>{
-    const m=new THREE.Mesh(new THREE.BoxGeometry(bw*MM,bh*MM,bd*MM),mat);
-    m.position.set(x*MM,y*MM,z*MM);g.add(m);
-  });
-  // Glass panes
-  const glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.45*MM,h*.9*MM,4*MM),new THREE.MeshLambertMaterial({color:0x88c0d8,transparent:true,opacity:0.35}));
-  glass.position.set(-w*0.25*MM,(sillH+h/2)*MM,0);g.add(glass);
-  const glass2=glass.clone();glass2.position.x=w*0.25*MM;g.add(glass2);
+  const jm=new THREE.MeshLambertMaterial({color:0xa09070});
+  const sl=new THREE.MeshLambertMaterial({color:0xc8b888});
+  [0,1].forEach(side=>{const j=new THREE.Mesh(new THREE.BoxGeometry(50*MM3,h*MM3,tk*MM3),jm);j.position.set((side===0?-w/2-25:w/2+25)*MM3,(h/2)*MM3,0);g.add(j);});
+  const piv=new THREE.Group();piv.position.x=-w*MM3/2;
+  const slab=new THREE.Mesh(new THREE.BoxGeometry(w*MM3,(h-10)*MM3,tk*.6*MM3),sl);slab.position.set(w*MM3/2,(h/2)*MM3,0);piv.add(slab);piv.rotation.y=-0.5;g.add(piv);
   g.traverse(ch=>{if(ch.isMesh){ch.castShadow=true;}});
-  g.position.set(o.x*MM,0,-o.y*MM);g.rotation.y=ang;t3.scene.add(g);
+  g.position.set(o.x*MM3,0,-o.y*MM3);g.rotation.y=ang;t3.scene.add(g);
 }
-
+function buildWindow3D(o){
+  const ang=-o.angle*Math.PI/180,w=o.width||900,sill=900,h=1000,tk=100;
+  const g=new THREE.Group();
+  const fm=new THREE.MeshLambertMaterial({color:0xd0cec8});
+  const gm=new THREE.MeshLambertMaterial({color:0x88c0d8,transparent:true,opacity:0.35});
+  const fr=[[0,sill+h+35,0,w,60,tk],[0,sill-35,0,w,60,tk],[-w/2+25,sill+h/2,0,40,h,tk],[w/2-25,sill+h/2,0,40,h,tk]];
+  fr.forEach(([x,y,z,bw,bh,bd])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(bw*MM3,bh*MM3,bd*MM3),fm);m.position.set(x*MM3,y*MM3,0);g.add(m);});
+  [-w*0.25,w*0.25].forEach(x=>{const gp=new THREE.Mesh(new THREE.BoxGeometry(w*.44*MM3,h*.92*MM3,6*MM3),gm);gp.position.set(x*MM3,(sill+h/2)*MM3,0);g.add(gp);});
+  g.traverse(ch=>{if(ch.isMesh)ch.castShadow=true;});
+  g.position.set(o.x*MM3,0,-o.y*MM3);g.rotation.y=ang;t3.scene.add(g);
+}
 function buildWallFix3D(o){
-  const ang=-o.angle*Math.PI/180;
-  const w=o.len||1000,d=o.thick||100,h=ceilH3d;
-  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM,h*MM,d*MM),new THREE.MeshLambertMaterial({color:0x808898}));
-  m.castShadow=true;m.receiveShadow=true;
-  m.position.set((o.x+w/2)*MM,h*MM/2,-o.y*MM);m.rotation.y=ang;t3.scene.add(m);
+  const ang=-o.angle*Math.PI/180,w=o.len||1000,d=o.thick||100,h=ceilH3d;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w*MM3,h*MM3,d*MM3),new THREE.MeshLambertMaterial({color:0x808898}));
+  m.castShadow=true;m.receiveShadow=true;m.position.set((o.x+w/2)*MM3,h*MM3/2,-o.y*MM3);m.rotation.y=ang;t3.scene.add(m);
 }
-
 function buildDrain3D(o){
-  const m=new THREE.Mesh(new THREE.CylinderGeometry(o.cw*0.4*MM,o.cw*0.4*MM,10*MM,12),new THREE.MeshLambertMaterial({color:0x707880}));
-  m.position.set(o.x*MM,5*MM,-o.y*MM);t3.scene.add(m);
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(o.cw*0.42*MM3,o.cw*0.42*MM3,12*MM3,12),new THREE.MeshLambertMaterial({color:0x707880}));
+  m.position.set(o.x*MM3,6*MM3,-o.y*MM3);t3.scene.add(m);
 }
 
-function buildPipes3D(){
-  const showS=document.getElementById('show-supply')?.checked;
-  const showD=document.getElementById('show-drain')?.checked;
-  if(!showS&&!showD) return;
-  const ps=document.getElementById('pipe-style')?.value||'standard';
-  const cols={standard:{hot:0xcc2020,cold:0x2060cc,drain:0x606870},copper:{hot:0xb87333,cold:0xb87333,drain:0x707070},white:{hot:0xeeeef0,cold:0xeeeef0,drain:0xf0f0f0}};
-  const c=cols[ps];
-  for(const van of objs.filter(o=>o.type==='vanity')){
-    const ang=-van.angle*Math.PI/180;
-    const cx=van.x*MM,cz=-van.y*MM;
-    const d=van.depth||500;
-    const roughIn=0.45; // 450mm
-    const vanTop=0.86;
-    if(showS){
-      const offX=0.05*Math.cos(ang+Math.PI/2), offZ=0.05*Math.sin(ang+Math.PI/2);
-      // Hot: right of centre
-      addPipe3D(cx+offX,0,cz+offZ, cx+offX,ceilH3d*MM,cz+offZ, 0.016,c.hot);
-      addPipe3D(cx+offX,roughIn,cz+offZ, cx+offX+0.12,roughIn,cz+offZ*0, 0.012,c.hot); // stub to wall
-      // Cold: left of centre
-      addPipe3D(cx-offX,0,cz-offZ, cx-offX,ceilH3d*MM,cz-offZ, 0.016,c.cold);
-      addPipe3D(cx-offX,roughIn,cz-offZ, cx-offX-0.12,roughIn,cz-offZ*0, 0.012,c.cold);
-    }
-    if(showD){
-      addPipe3D(cx,0,cz, cx,vanTop,cz, 0.032,c.drain);
-    }
-  }
-}
-
-function addPipe3D(x1,y1,z1, x2,y2,z2, r, col){
-  const len=Math.hypot(x2-x1,y2-y1,z2-z1);if(len<0.001)return;
-  const geo=new THREE.CylinderGeometry(r,r,len,8,1);
-  const mat=new THREE.MeshLambertMaterial({color:col});
-  const m=new THREE.Mesh(geo,mat);m.castShadow=true;
-  m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
-  const dir=new THREE.Vector3(x2-x1,y2-y1,z2-z1).normalize();
-  const up=new THREE.Vector3(0,1,0);
-  const ax=new THREE.Vector3().crossVectors(up,dir).normalize();
-  const angle=Math.acos(Math.max(-1,Math.min(1,up.dot(dir))));
-  if(ax.lengthSq()>1e-6)m.setRotationFromAxisAngle(ax,angle);
-  t3.scene.add(m);
-}
-
-// ─ SELECTION ──────────────────────────────────
-function onClick3D(e){
+// ─ SELECTION & PANEL ──────────────────────────
+function on3DClick(e){
   if(!t3)return;
   const cv=document.getElementById('cv3d');
   const rect=cv.getBoundingClientRect();
-  const cx=e.clientX??e.pageX,cy=e.clientY??e.pageY;
-  const nx=((cx-rect.left)/rect.width)*2-1;
-  const ny=-((cy-rect.top)/rect.height)*2+1;
-  const ray=new THREE.Raycaster();
-  ray.setFromCamera({x:nx,y:ny},t3.cam);
+  const nx=((( e.clientX??e.pageX)-rect.left)/rect.width)*2-1;
+  const ny=-(((e.clientY??e.pageY)-rect.top)/rect.height)*2+1;
+  const ray=new THREE.Raycaster();ray.setFromCamera({x:nx,y:ny},t3.cam);
   const hits=ray.intersectObjects(walls3d.map(w=>w.mesh));
   if(hits.length){
     const ud=hits[0].object.userData;
+    if(pipeDrawMode){
+      // Place pipe waypoint at hit point
+      const pt=hits[0].point;
+      placePipePoint({x:pt.x,y:pt.y,z:pt.z});
+      return;
+    }
     sel3d={floorId:ud.floorId,wallIdx:ud.wallIdx};
-  } else sel3d=null;
-  show3DPanel();build3DScene();
+  } else {
+    if(pipeDrawMode)return; // don't deselect while drawing
+    sel3d=null;
+  }
+  build3DScene();show3DPanel();
 }
 
 function show3DPanel(){
   const p=document.getElementById('wall3d-panel');if(!p)return;
-  if(sel3d){
-    const fl=objs.find(o=>o.id===sel3d.floorId);
-    const n=fl?.vertices?.length||0,a=fl?.vertices[sel3d.wallIdx],b=fl?.vertices[(sel3d.wallIdx+1)%n];
-    const wLen=a&&b?Math.round(Math.hypot(b.x-a.x,b.y-a.y)):'?';
-    document.getElementById('wall3d-title').textContent=`Wall ${sel3d.wallIdx+1} (${wLen}mm)`;
-    const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
-    const curH=wallTileH[key]??(fl?.tiled?ceilH3d:0);
-    document.getElementById('wall-tile-h').value=curH;
-    document.getElementById('wall-tile-h-sl').value=curH;
-    document.getElementById('wall-tile-h-sl').max=ceilH3d;
-    document.getElementById('wall-tile-h-lbl').textContent=curH;
-    p.style.display='';
-  }else p.style.display='none';
+  if(!sel3d){p.style.display='none';return;}
+  p.style.display='';
+  const fl=objs.find(o=>o.id===sel3d.floorId);if(!fl)return;
+  const n=fl.vertices.length,a=fl.vertices[sel3d.wallIdx],b=fl.vertices[(sel3d.wallIdx+1)%n];
+  const wLen=a&&b?Math.round(Math.hypot(b.x-a.x,b.y-a.y)):'?';
+  document.getElementById('wall3d-title').textContent=`Wall ${sel3d.wallIdx+1} (${wLen}mm)`;
+  const key=`${sel3d.floorId}_${sel3d.wallIdx}`;
+  const ws2=getWS(fl,sel3d.wallIdx);
+  // Populate link dropdown
+  const linkSel=document.getElementById('wall3d-link');
+  linkSel.innerHTML='<option value="">None (own settings)</option>';
+  for(const fl2 of objs.filter(o=>o.type==='floor'&&!o._editing))
+    for(let i=0;i<fl2.vertices.length;i++){
+      const k=`${fl2.id}_${i}`;if(k===key)continue;
+      const a2=fl2.vertices[i],b2=fl2.vertices[(i+1)%fl2.vertices.length];
+      const l2=Math.round(Math.hypot(b2.x-a2.x,b2.y-a2.y));
+      const opt=document.createElement('option');opt.value=k;opt.textContent=`${fl2.name} Wall ${i+1} (${l2}mm)`;
+      if(wallSettings[key]?.linkedTo===k)opt.selected=true;
+      linkSel.appendChild(opt);
+    }
+  const linked=!!wallSettings[key]?.linkedTo;
+  document.getElementById('wall3d-own').style.opacity=linked?'0.5':'1';
+  // Fill in wall settings
+  const h=ws2.wallH;
+  document.getElementById('wall-tile-h').value=h;
+  document.getElementById('wall-tile-h-sl').value=h;document.getElementById('wall-tile-h-sl').max=ceilH3d;
+  document.getElementById('wall-tile-h-lbl').textContent=h;
+  document.getElementById('wtile-w').value=ws2.tileW;
+  document.getElementById('wtile-h').value=ws2.tileH;
+  document.getElementById('wtile-col').value=ws2.tileColor;document.getElementById('wtile-col-txt').value=ws2.tileColor;
+  document.getElementById('wgrout-col').value=ws2.groutColor;document.getElementById('wgrout-col-txt').value=ws2.groutColor;
+  document.getElementById('wgrout-w').value=ws2.groutW;
+  document.getElementById('wtile-price').value=ws2.tilePrice;
+  document.getElementById('wtile-waste').value=ws2.wastage;
 }
 
-function setWallTileH(v){
-  if(!sel3d)return;wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]=v;
-  document.getElementById('wall-tile-h-sl').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;
-  build3DScene();
+// ─ PIPE DRAWING ───────────────────────────────
+function selPipeType(type,btn){
+  activePipeType=type;
+  document.querySelectorAll('.pipe-type-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('pipe-custom-col').style.display=type==='custom'?'':'none';
 }
-function setWallTileHSl(v){
-  if(!sel3d)return;wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]=v;
-  document.getElementById('wall-tile-h').value=v;document.getElementById('wall-tile-h-lbl').textContent=v;
-  build3DScene();
+function togglePipeDraw(){
+  pipeDrawMode=!pipeDrawMode;
+  const btn=document.getElementById('pipe-draw-btn');
+  if(pipeDrawMode){
+    // Start new pipe
+    const color=activePipeType==='custom'?parseInt(document.getElementById('pipe-custom-color').value.slice(1),16):PIPE_COLS[activePipeType];
+    const radius=(+document.getElementById('pipe-diam').value||25)/2;
+    activePipe={pts:[],color,radius,meshes:[]};
+    btn.textContent='● Drawing…';btn.style.background='var(--red)';
+    document.getElementById('pipe-status').textContent='Click walls to place waypoints';
+  } else {
+    endCurrentPipe();
+    btn.textContent='✏ Draw Pipe';btn.style.background='';
+  }
 }
-function applyTileHAll(){
-  if(!sel3d)return;
-  const fl=objs.find(o=>o.id===sel3d.floorId);if(!fl)return;
-  const h=wallTileH[`${sel3d.floorId}_${sel3d.wallIdx}`]??ceilH3d;
-  for(let i=0;i<fl.vertices.length;i++)wallTileH[`${fl.id}_${i}`]=h;
-  build3DScene();
+function placePipePoint(pt){
+  if(!activePipe)return;
+  activePipe.pts.push({...pt});
+  // Add sphere at waypoint
+  const sg=new THREE.SphereGeometry(activePipe.radius*1.2*MM3,8,8);
+  const sm=new THREE.Mesh(sg,new THREE.MeshLambertMaterial({color:activePipe.color}));
+  sm.position.set(pt.x,pt.y,pt.z);sm.castShadow=true;
+  activePipe.meshes.push(sm);t3.scene.add(sm);
+  // Add cylinder from previous point
+  if(activePipe.pts.length>1){
+    const p1=activePipe.pts[activePipe.pts.length-2],p2=pt;
+    const cyl=makePipeSeg(p1,p2,activePipe.radius*MM3,activePipe.color);
+    activePipe.meshes.push(cyl);t3.scene.add(cyl);
+  }
+  document.getElementById('pipe-status').textContent=`${activePipe.pts.length} waypoints`;
 }
-function setCeilH(v){
-  ceilH3d=Math.max(1000,Math.min(6000,v));
-  if(t3?.ceilLight)t3.ceilLight.position.y=ceilH3d*MM-0.15;
-  document.getElementById('wall-tile-h-sl').max=ceilH3d;
+function makePipeSeg(p1,p2,r,col){
+  const dx=p2.x-p1.x,dy=p2.y-p1.y,dz=p2.z-p1.z;
+  const len=Math.sqrt(dx*dx+dy*dy+dz*dz);if(len<0.001)return new THREE.Mesh();
+  const geo=new THREE.CylinderGeometry(r,r,len,8);
+  const mat=new THREE.MeshLambertMaterial({color:col});
+  const m=new THREE.Mesh(geo,mat);m.castShadow=true;
+  m.position.set((p1.x+p2.x)/2,(p1.y+p2.y)/2,(p1.z+p2.z)/2);
+  const dir=new THREE.Vector3(dx,dy,dz).normalize();
+  const up=new THREE.Vector3(0,1,0);
+  const ax=new THREE.Vector3().crossVectors(up,dir).normalize();
+  const angle=Math.acos(Math.max(-1,Math.min(1,up.dot(dir))));
+  if(ax.lengthSq()>1e-6)m.setRotationFromAxisAngle(ax,angle);
+  t3.scene.add(m);return m;
+}
+function undoLastPipePoint(){
+  if(!activePipe||!activePipe.pts.length)return;
+  activePipe.pts.pop();
+  const removed=activePipe.meshes.splice(-Math.min(2,activePipe.meshes.length));
+  removed.forEach(m=>{t3.scene.remove(m);m.geometry.dispose();m.material.dispose();});
+  document.getElementById('pipe-status').textContent=`${activePipe.pts.length} waypoints`;
+}
+function endCurrentPipe(){
+  if(activePipe&&activePipe.pts.length>0){customPipes.push(activePipe);}
+  activePipe=null;pipeDrawMode=false;
+  const btn=document.getElementById('pipe-draw-btn');
+  if(btn){btn.textContent='✏ Draw Pipe';btn.style.background='';}
+  document.getElementById('pipe-status').textContent='Click walls to place waypoints';
+}
+function clearAllPipes(){
+  endCurrentPipe();
+  customPipes.forEach(p=>p.meshes.forEach(m=>{t3.scene.remove(m);m.geometry?.dispose();m.material?.dispose();}));
+  customPipes=[];
   build3DScene();
 }
 
@@ -2973,7 +3088,6 @@ function setCeilH(v){
 function animate3D(){raf3d=requestAnimationFrame(animate3D);if(t3)t3.ren.render(t3.scene,t3.cam);}
 function stop3D(){if(raf3d){cancelAnimationFrame(raf3d);raf3d=null;}}
 window.addEventListener('resize',()=>{if(document.getElementById('view3d-area')?.classList.contains('show'))resize3D();});
-
 </script>
 </body>
 </html>
